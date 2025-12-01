@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KINLY - Трекер домашних животных</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="background-blob blob-1"></div>
+    <div class="background-blob blob-2"></div>
+
+    <div class="container">
+        <div class="sidebar-container"></div>
+        
+        <main class="main-content">
+            <div class="header-container"></div>
+            <div class="page-content"></div>
+        </main>
+    </div>
+
+    <!-- Framework -->
+    <script type="module" src="js/framework/render.js"></script>
+    <script type="module" src="js/framework/view/abstract-component.js"></script>
+    
+    <!-- Models -->
+    <script type="module" src="js/models/pet.js"></script>
+    <script type="module" src="js/models/event.js"></script>
+    <script type="module" src="js/models/meal.js"></script>
+    <script type="module" src="js/models/app-model.js"></script>
+    
+    <!-- Data -->
+    <script type="module" src="js/data/mock-data.js"></script>
+    
+    <!-- Components -->
+    <script type="module" src="js/components/sidebar-component.js"></script>
+    <script type="module" src="js/components/header-component.js"></script>
+    <script type="module" src="js/components/stat-card-component.js"></script>
+    <script type="module" src="js/components/quick-stats-component.js"></script>
+    <script type="module" src="js/components/chart-component.js"></script>
+    <script type="module" src="js/components/health-metrics-component.js"></script>
+    <script type="module" src="js/components/events-component.js"></script>
+    <script type="module" src="js/components/nutrition-component.js"></script>
+    <script type="module" src="js/components/care-journal-component.js"></script>
+    <script type="module" src="js/components/gallery-component.js"></script>
+    <script type="module" src="js/components/reminders-component.js"></script>
+    <script type="module" src="js/components/modal-component.js"></script>
+    
+    <!-- Modal Components -->
+    <script type="module" src="js/components/add-pet-modal-component.js"></script>
+    <script type="module" src="js/components/add-weight-modal-component.js"></script>
+    <script type="module" src="js/components/add-event-modal-component.js"></script>
+    <script type="module" src="js/components/add-meal-modal-component.js"></script>
+    <script type="module" src="js/components/add-care-modal-component.js"></script>
+    <script type="module" src="js/components/add-photo-modal-component.js"></script>
+    <script type="module" src="js/components/profile-modal-component.js"></script>
+    
+    <!-- Views -->
+    <script type="module" src="js/views/dashboard-view.js"></script>
+    
+    <!-- Presenters -->
+    <script type="module" src="js/presenters/dashboard-presenter.js"></script>
+    
+    <!-- App -->
+    <script type="module" src="js/app.js"></script>
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
