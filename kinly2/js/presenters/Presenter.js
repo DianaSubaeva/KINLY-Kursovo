@@ -1,0 +1,41 @@
+class Presenter {
+    constructor(app) {
+        this.app = app;
+        this.dataManager = app.dataManager;
+        this.modalManager = app.modalManager;
+        this.notificationManager = app.notificationManager;
+    }
+    
+    render() {
+        // Базовый метод рендеринга
+        const content = this.getContent();
+        document.getElementById('page-content').innerHTML = content;
+        this.setupEventListeners();
+    }
+    
+    getContent() {
+        // Должен быть переопределен в дочерних классах
+        return '';
+    }
+    
+    setupEventListeners() {
+        // Должен быть переопределен в дочерних классах
+    }
+    
+    getCurrentPet() {
+        return this.app.currentPet;
+    }
+    
+    formatDate(dateString) {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('ru-RU');
+    }
+    
+    calculateDaysLeft(targetDate) {
+        const target = new Date(targetDate);
+        const today = new Date();
+        const diffTime = target - today;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays;
+    }
+}
