@@ -8,6 +8,8 @@ class App {
     }
     
     init() {
+        console.log('🚀 Инициализация приложения...');
+        
         // Инициализация компонентов
         this.dataManager = new DataManager();
         this.modalManager = new ModalManager(this);
@@ -59,6 +61,8 @@ class App {
         document.getElementById('add-pet-btn').addEventListener('click', () => {
             this.petManager.showAddPetModal();
         });
+        
+        // НЕТ КНОПКИ API И НЕТ ВЫЗОВОВ setupApiToggle()
     }
     
     loadPage(page) {
@@ -110,7 +114,7 @@ class App {
         `;
     }
     
-     switchPet(petId) {
+    switchPet(petId) {
         this.currentPet = this.dataManager.getPet(petId);
         this.dataManager.setCurrentPetId(petId);
         this.petManager.renderPetsList();
@@ -124,6 +128,7 @@ class App {
         const currentPetId = this.dataManager.getCurrentPetId();
         this.currentPet = this.dataManager.getPet(currentPetId);
     }
+    
     showNotification(message, type = 'info') {
         this.notificationManager.showNotification(message, type);
     }

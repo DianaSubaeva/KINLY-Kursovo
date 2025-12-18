@@ -1,8 +1,8 @@
+
 class DataManager {
     constructor() {
-        // ДОБАВЬТЕ ЭТУ СТРОКУ:
         this.api = new ApiService();
-        this.useApi = false; // Пока отключим API, включим после настройки
+        this.useApi = false; 
         
         this.data = {
             pets: [],
@@ -94,6 +94,30 @@ class DataManager {
             return false;
         }
     }
+     async addPetWithApi(petData) {
+        console.log('🔄 Добавляю питомца...');
+        
+        // 1. Сохраняем локально
+        const newPet = {
+            id: Date.now(),
+            ...petData
+        };
+        
+        this.data.pets.push(newPet);
+        this.saveData();
+        console.log('✅ Питомец сохранен локально');
+        
+        // 2. Пробуем отправить в Beeceptor
+        try {
+            console.log('📤 Отправляю в Beeceptor...');
+            const apiResponse = await this.api.createPet(petData);
+            console.log('✅ Ответ от Beeceptor:', apiResponse);
+        } catch (error) {
+            console.log('⚠️ Не удалось отправить в Beeceptor, работаю локально');
+        }
+        
+        return newPet;
+     }
     
     // ===== ОБНОВЛЕННЫЕ МЕТОДЫ ДЛЯ ПИТОМЦЕВ =====
     
