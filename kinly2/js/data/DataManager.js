@@ -1,5 +1,9 @@
 class DataManager {
     constructor() {
+        // ДОБАВЬТЕ ЭТУ СТРОКУ:
+        this.api = new ApiService();
+        this.useApi = false; // Пока отключим API, включим после настройки
+        
         this.data = {
             pets: [],
             currentPetId: null,
@@ -22,33 +26,181 @@ class DataManager {
         this.loadInitialData();
     }
     
-    loadInitialData() {
+    async loadInitialData() {
         const savedData = localStorage.getItem(KINLY_CONST.STORAGE_KEYS.PET_TRACKER);
         
         if (savedData) {
             this.data = JSON.parse(savedData);
         } else {
-            this.data = {
-                pets: MOCK_PETS || [],
-                currentPetId: MOCK_PETS && MOCK_PETS.length > 0 ? MOCK_PETS[0].id : null,
-                events: MOCK_EVENTS || [],
-                meals: MOCK_MEALS || [],
-                careItems: MOCK_CARE_ITEMS || [],
-                photos: MOCK_PHOTOS || [],
-                reminders: MOCK_REMINDERS || [],
-                healthData: MOCK_HEALTH || {
-                    metrics: [],
-                    weightHistory: [],
-                    medicalRecords: [],
-                    vaccinationSchedule: [],
-                    healthIndicators: [],
-                    healthRecommendations: [],
-                    routineProcedures: []
+            // Пробуем загрузить питомцев из API, если подключено
+            try {
+                if (this.useApi) {
+                    const apiPets = await this.api.getPets();
+                    console.log('✅ Питомцы загружены из API:', apiPets);
+                    this.data.pets = apiPets;
+                } else {
+                    this.data.pets = MOCK_PETS || [];
                 }
+            } catch (error) {
+                console.warn('⚠️ API недоступно, использую mock данные');
+                this.data.pets = MOCK_PETS || [];
+            }
+            
+            this.data.currentPetId = this.data.pets.length > 0 ? this.data.pets[0].id : null;
+            this.data.events = MOCK_EVENTS || [];
+            this.data.meals = MOCK_MEALS || [];
+            this.data.careItems = MOCK_CARE_ITEMS || [];
+            this.data.photos = MOCK_PHOTOS || [];
+            this.data.reminders = MOCK_REMINDERS || [];
+            this.data.healthData = MOCK_HEALTH || {
+                metrics: [],
+                weightHistory: [],
+                medicalRecords: [],
+                vaccinationSchedule: [],
+                healthIndicators: [],
+                healthRecommendations: [],
+                routineProcedures: []
             };
         }
     }
     
+    // ===== НОВЫЕ МЕТОДЫ ДЛЯ РАБОТЫ С API =====
+    
+    async testApiConnection() {
+        try {
+            const pets = await this.api.getPets();
+            this.useApi = true;
+            console.log('✅ API подключено успешно! Получено питомцев:', pets.length);
+            return true;
+        } catch (error) {
+            console.warn('❌ API недоступно, работаю в оффлайн режиме');
+            this.useApi = false;
+            return false;
+        }
+    }
+    
+    async syncPetsWithApi() {
+        if (!this.useApi) return false;
+        
+        try {
+            const apiPets = await this.api.getPets();
+            // Синхронизируем с локальными данными
+            this.data.pets = apiPets;
+            this.saveData();
+            console.log('✅ Данные синхронизированы с API');
+            return true;
+        } catch (error) {
+            console.error('❌ Ошибка синхронизации с API:', error);
+            return false;
+        }
+    }
+    
+    // ===== ОБНОВЛЕННЫЕ МЕТОДЫ ДЛЯ ПИТОМЦЕВ =====
+    
+    getPets() {
+        return this.data.pets;
+    }
+    
+    async getPet(petId) {
+        // Сначала ищем локально
+        const localPet = this.data.pets.find(pet => pet.id === petId);
+        if (localPet) return localPet;
+        
+        // Если не нашли и API активно, пробуем получить из API
+        if (this.useApi) {
+            try {
+                const apiPet = await this.api.getPet(petId);
+                // Добавляем в локальные данные
+                if (!this.data.pets.find(p => p.id == apiPet.id)) {
+                    this.data.pets.push(apiPet);
+                }
+                return apiPet;
+            } catch (error) {
+                console.warn('Не удалось получить питомца из API:', error);
+            }
+        }
+        
+        return null;
+    }
+    
+    async addPet(petData) {
+        const newPet = {
+            id: Date.now(),
+            ...petData
+        };
+        
+        // Пробуем сохранить в API, если подключено
+        if (this.useApi) {
+            try {
+                const apiPet = await this.api.createPet(petData);
+                console.log('✅ Питомец создан в API:', apiPet);
+                // Используем ID из API
+                newPet.id = apiPet.id;
+                newPet.apiId = apiPet.id; // Сохраняем API ID отдельно
+            } catch (error) {
+                console.warn('❌ Не удалось создать питомца в API:', error);
+            }
+        }
+        
+        // Сохраняем локально
+        this.data.pets.push(newPet);
+        
+        if (!this.data.currentPetId) {
+            this.data.currentPetId = newPet.id;
+        }
+        
+        this.saveData();
+        return newPet;
+    }
+    
+    async updatePet(petId, petData) {
+        const index = this.data.pets.findIndex(pet => pet.id === petId);
+        if (index !== -1) {
+            // Обновляем в API, если подключено
+            if (this.useApi && this.data.pets[index].apiId) {
+                try {
+                    await this.api.updatePet(this.data.pets[index].apiId, petData);
+                    console.log('✅ Питомец обновлен в API');
+                } catch (error) {
+                    console.warn('❌ Не удалось обновить питомца в API:', error);
+                }
+            }
+            
+            // Обновляем локально
+            this.data.pets[index] = { ...this.data.pets[index], ...petData };
+            this.saveData();
+            return true;
+        }
+        return false;
+    }
+    
+    async deletePet(petId) {
+        const index = this.data.pets.findIndex(pet => pet.id === petId);
+        if (index !== -1) {
+            // Удаляем из API, если подключено
+            if (this.useApi && this.data.pets[index].apiId) {
+                try {
+                    await this.api.deletePet(this.data.pets[index].apiId);
+                    console.log('✅ Питомец удален из API');
+                } catch (error) {
+                    console.warn('❌ Не удалось удалить питомца из API:', error);
+                }
+            }
+            
+            // Удаляем локально
+            this.data.pets.splice(index, 1);
+            
+            if (this.data.currentPetId === petId && this.data.pets.length > 0) {
+                this.data.currentPetId = this.data.pets[0].id;
+            } else if (this.data.pets.length === 0) {
+                this.data.currentPetId = null;
+            }
+            
+            this.saveData();
+            return true;
+        }
+        return false;
+    }
     // ===== МЕТОДЫ ДЛЯ РАБОТЫ С ЗДОРОВЬЕМ =====
     
     getHealthMetrics(petId) {
