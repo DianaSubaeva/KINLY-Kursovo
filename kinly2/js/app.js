@@ -3,25 +3,29 @@ class App {
         this.currentPet = null;
         this.currentPage = 'overview';
         this.presenters = {};
-        
-        this.init();
+        setTimeout(() => this.init(), 300);
     }
     
-    init() {
-        console.log('🚀 Инициализация приложения...');
+    async init() {
+        console.log(' App.init() начат');
         
-        // Инициализация компонентов
         this.dataManager = new DataManager();
+        console.log(' DataManager создан');
+        
+        await this.dataManager.init();
+        console.log(' DataManager инициализирован');
+        
         this.modalManager = new ModalManager(this);
         this.notificationManager = new NotificationManager(this);
         this.petManager = new PetManager(this);
         this.profileManager = new ProfileManager(this);
         
-        // Установка текущего питомца
         const currentPetId = this.dataManager.getCurrentPetId();
-        this.currentPet = this.dataManager.getPet(currentPetId);
+        if (currentPetId) {
+            this.currentPet = this.dataManager.getPet(currentPetId);
+            console.log(' Текущий питомец:', this.currentPet);
+        }
         
-        // Инициализация презентеров
         this.presenters.overview = new OverviewPresenter(this);
         this.presenters.health = new HealthPresenter(this);
         this.presenters.care = new CarePresenter(this);
@@ -29,24 +33,15 @@ class App {
         this.presenters.gallery = new GalleryPresenter(this);
         this.presenters.reminders = new RemindersPresenter(this);
         
-        // Настройка обработчиков событий
         this.setupEventListeners();
-        
-        // Установка текущей даты
         this.updateCurrentDate();
-        
-        // Обновление списка питомцев
         this.petManager.renderPetsList();
-        
-        // Загрузка начальной страницы
         this.loadPage('overview');
+        
+        console.log('Приложение полностью инициализировано');
     }
-     // ДОБАВЬТЕ ЭТОТ МЕТОД ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ
-    getCurrentPet() {
-        return this.currentPet;
-    }
+    
     setupEventListeners() {
-        // Навигация
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -55,21 +50,16 @@ class App {
             });
         });
         
-        // Колокольчик уведомлений
         document.getElementById('notification-bell').addEventListener('click', () => {
             this.notificationManager.showNotification('Нет новых уведомлений', 'info');
         });
         
-        // Добавление питомца
         document.getElementById('add-pet-btn').addEventListener('click', () => {
             this.petManager.showAddPetModal();
         });
-        
-        // НЕТ КНОПКИ API И НЕТ ВЫЗОВОВ setupApiToggle()
     }
     
     loadPage(page) {
-        // Обновление активной ссылки в навигации
         document.querySelectorAll('.nav-link').forEach(link => {
             link.classList.remove('active');
             if (link.dataset.page === page) {
@@ -77,11 +67,8 @@ class App {
             }
         });
         
-        
-        // Обновление хлебных крошек
         this.updateBreadcrumb(page);
         
-        // Загрузка контента страницы
         if (this.presenters[page]) {
             this.presenters[page].render();
             this.currentPage = page;
@@ -124,7 +111,6 @@ class App {
         this.petManager.renderPetsList();
         this.saveData();
         
-        // Перезагрузка текущей страницы с новыми данными
         this.loadPage(this.currentPage);
     }
     
@@ -142,7 +128,7 @@ class App {
     }
 }
 
-// Инициализация приложения при загрузке страницы
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM загружен, создаю App...');
     window.app = new App();
 });

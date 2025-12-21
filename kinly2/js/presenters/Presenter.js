@@ -7,19 +7,16 @@ class Presenter {
     }
     
     render() {
-        // Базовый метод рендеринга
         const content = this.getContent();
         document.getElementById('page-content').innerHTML = content;
         this.setupEventListeners();
     }
     
     getContent() {
-        // Должен быть переопределен в дочерних классах
         return '';
     }
     
     setupEventListeners() {
-        // Должен быть переопределен в дочерних классах
     }
     
     getCurrentPet() {

@@ -1,4 +1,3 @@
-// js/data/DataManager.js
 class DataManager {
     constructor() {
         this.data = {
@@ -20,20 +19,64 @@ class DataManager {
             }
         };
         
-        // Простая проверка - если есть API, используем его
-        this.useApi = window.apiService !== undefined;
+        this.useApi = false;
+        this.initialized = false;
         
-        this.loadInitialData();
+        console.log('DataManager создан (ждём инициализацию)');
     }
-    
-    async loadInitialData() {
-        const savedData = localStorage.getItem(KINLY_CONST.STORAGE_KEYS.PET_TRACKER);
+
+    async init() {
+        console.log('DataManager.init() начат');
         
+        this.useApi = window.apiService !== undefined;
+        console.log('useApi =', this.useApi);
+        console.log('window.apiService =', window.apiService);
+        
+        if (this.useApi && window.apiService) {
+            console.log('API доступно, пробую загрузить данные...');
+            try {
+                const apiPets = await window.apiService.getPets();
+                console.log('API вернуло:', apiPets);
+                
+                if (apiPets && Array.isArray(apiPets) && apiPets.length > 0) {
+                    console.log(`Найдено ${apiPets.length} питомцев в API`);
+                    
+                    this.data.pets = apiPets.map(apiPet => ({
+                        id: apiPet.id,
+                        name: apiPet.name,
+                        type: apiPet.type,
+                        breed: apiPet.breed || '',
+                        age: apiPet.age || 0,
+                        weight: apiPet.weight || 0,
+                        healthStatus: apiPet.healthStatus || '',
+                        nextVaccination: apiPet.nextVaccination || '',
+                        avatar: apiPet.avatar || 'default',
+                        allergies: [],
+                        healthMetrics: {},
+                        weightHistory: []
+                    }));
+                    
+                    console.log(`Загружены питомцы:`, this.data.pets.map(p => p.name));
+                    
+                    if (this.data.pets.length > 0) {
+                        this.data.currentPetId = this.data.pets[0].id;
+                        console.log(`Текущий питомец: ${this.data.pets[0].name}`);
+                    }
+                    
+                    this.saveData();
+                    this.initialized = true;
+                    return;
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки из API:', error);
+            }
+        }
+        
+        const savedData = localStorage.getItem(KINLY_CONST.STORAGE_KEYS.PET_TRACKER);
         if (savedData) {
             this.data = JSON.parse(savedData);
-            console.log('📥 Данные загружены из localStorage');
+            console.log('Данные загружены из localStorage');
         } else {
-            // Просто загружаем mock данные
             this.data.pets = window.MOCK_PETS || [];
             this.data.events = window.MOCK_EVENTS || [];
             this.data.meals = window.MOCK_MEALS || [];
@@ -53,60 +96,102 @@ class DataManager {
             if (this.data.pets.length > 0) {
                 this.data.currentPetId = this.data.pets[0].id;
             }
-            
             console.log('📥 Загружены mock данные');
         }
+        
+        this.initialized = true;
     }
-    
-    // ===== ПРОСТЫЕ МЕТОДЫ ДЛЯ ПИТОМЦЕВ =====
+
+    getCurrentPetId() {
+        return this.data.currentPetId;
+    }
+
+    setCurrentPetId(petId) {
+        this.data.currentPetId = petId;
+        this.saveData();
+    }
+
+    getPet(petId) {
+        return this.data.pets.find(pet => pet.id == petId);
+    }
+
     getPets() {
         return this.data.pets;
     }
     
-    getPet(petId) {
-        return this.data.pets.find(pet => pet.id === petId);
+    saveData() {
+        localStorage.setItem(KINLY_CONST.STORAGE_KEYS.PET_TRACKER, JSON.stringify(this.data));
+        console.log('Данные сохранены в localStorage');
     }
     
     async addPet(petData) {
-        console.log('➕ Добавляю питомца:', petData);
-        
-        // Генерируем простой ID
-        const newPet = {
-            id: Date.now(),
-            ...petData
-        };
-        
-        // Сохраняем локально
-        this.data.pets.push(newPet);
-        
-        if (!this.data.currentPetId) {
-            this.data.currentPetId = newPet.id;
-        }
-        
-        this.saveData();
-        
-        // ПРОБУЕМ ОТПРАВИТЬ В API (если есть)
-        if (this.useApi && window.apiService) {
-            try {
-                const response = await window.apiService.createPet(petData);
-                console.log('✅ Питомец сохранен в API:', response);
-            } catch (error) {
-                console.log('⚠️ Не удалось отправить в API:', error.message);
-            }
-        }
-        
-        return newPet;
+    console.log(' DataManager: Добавляю питомца:', petData);
+    const newPet = {
+        id: Date.now(),
+        name: petData.name || '',
+        type: petData.type || '',
+        breed: petData.breed || '',
+        age: petData.age || 0,
+        weight: petData.weight || 0,
+        healthStatus: petData.healthStatus || '',
+        nextVaccination: petData.nextVaccination || '',
+        avatar: petData.avatar || 'default',
+        allergies: [],
+        healthMetrics: {},
+        weightHistory: []
+    };
+    
+    this.data.pets.push(newPet);
+    if (!this.data.currentPetId) {
+        this.data.currentPetId = newPet.id;
     }
+    
+    if (this.useApi && window.apiService) {
+        try {
+            console.log('Отправляю в API...');
+            
+            const apiPetData = {
+                name: newPet.name,
+                type: newPet.type,
+                breed: newPet.breed,
+                age: newPet.age,
+                weight: newPet.weight,
+                healthStatus: newPet.healthStatus,
+                nextVaccination: newPet.nextVaccination,
+                avatar: newPet.avatar
+            };
+            
+            console.log('📦 Данные для API:', apiPetData);
+            
+            const apiResponse = await window.apiService.createPet(apiPetData);
+            
+            // Обновляем ID на тот, что присвоил API
+            newPet.id = apiResponse.id;
+            console.log('✅ Питомец сохранен в API с ID:', apiResponse.id);
+            
+            // Обновляем локальный список с новым ID
+            const index = this.data.pets.findIndex(p => p.id === Date.now());
+            if (index !== -1) {
+                this.data.pets[index].id = apiResponse.id;
+            }
+            
+        } catch (error) {
+            console.log('⚠️ Не удалось отправить в API:', error.message);
+            console.log('⚠️ Полная ошибка:', error);
+        }
+    }
+    
+    // 3. Сохраняем в localStorage
+    this.saveData();
+    return newPet;
+}
     
     async updatePet(petId, petData) {
         const index = this.data.pets.findIndex(pet => pet.id === petId);
         if (index === -1) return false;
         
-        // Обновляем локально
         this.data.pets[index] = { ...this.data.pets[index], ...petData };
-        this.saveData();
         
-        // Пробуем отправить в API
         if (this.useApi && window.apiService) {
             try {
                 await window.apiService.updatePet(petId, petData);
@@ -116,6 +201,7 @@ class DataManager {
             }
         }
         
+        this.saveData();
         return true;
     }
     
@@ -123,7 +209,6 @@ class DataManager {
         const index = this.data.pets.findIndex(pet => pet.id === petId);
         if (index === -1) return false;
         
-        // Удаляем локально
         this.data.pets.splice(index, 1);
         
         if (this.data.currentPetId === petId && this.data.pets.length > 0) {
@@ -132,9 +217,6 @@ class DataManager {
             this.data.currentPetId = null;
         }
         
-        this.saveData();
-        
-        // Пробуем удалить из API
         if (this.useApi && window.apiService) {
             try {
                 await window.apiService.deletePet(petId);
@@ -144,38 +226,22 @@ class DataManager {
             }
         }
         
+        this.saveData();
         return true;
     }
-    
-    // ===== ПРОСТЫЕ GETTERS =====
-    getCurrentPetId() {
-        return this.data.currentPetId;
-    }
-    
-    setCurrentPetId(petId) {
-        this.data.currentPetId = petId;
-        this.saveData();
-    }
-    
+
     getEvents(petId) {
         return this.data.events.filter(event => event.petId === petId);
     }
-    
+
     getCareItems(petId) {
         return this.data.careItems.filter(item => item.petId === petId);
     }
-    
-    // ===== ОСТАЛЬНЫЕ МЕТОДЫ (оставляем как были) =====
-    saveData() {
-        localStorage.setItem(KINLY_CONST.STORAGE_KEYS.PET_TRACKER, JSON.stringify(this.data));
-    }
-    // ===== МЕТОДЫ ДЛЯ РАБОТЫ С ЗДОРОВЬЕМ =====
-    
+
     getHealthMetrics(petId) {
         const petMetrics = this.data.healthData.metrics.find(m => m.petId === petId);
         if (petMetrics) return petMetrics;
         
-        // Если нет данных, создаем базовые
         const defaultMetrics = {
             petId,
             appetite: 90,
@@ -186,40 +252,40 @@ class DataManager {
             pulse: 60,
             breathing: 20
         };
-        
         this.data.healthData.metrics.push(defaultMetrics);
         return defaultMetrics;
     }
-    
+
     updateHealthMetrics(petId, metrics) {
         const index = this.data.healthData.metrics.findIndex(m => m.petId === petId);
         if (index !== -1) {
-            this.data.healthData.metrics[index] = { ...this.data.healthData.metrics[index], ...metrics };
+            this.data.healthData.metrics[index] = { 
+                ...this.data.healthData.metrics[index], 
+                ...metrics 
+            };
         } else {
             this.data.healthData.metrics.push({ petId, ...metrics });
         }
         this.saveData();
     }
-    
+
     getWeightHistory(petId) {
         const history = this.data.healthData.weightHistory.find(w => w.petId === petId);
         if (history) return history.data;
         
-        // Если нет истории, берем из питомца или создаем пустую
         const pet = this.getPet(petId);
         if (pet && pet.weightHistory) {
             return pet.weightHistory;
         }
         return [];
     }
-    
+
     addWeightRecord(petId, weightRecord) {
         let history = this.data.healthData.weightHistory.find(w => w.petId === petId);
         if (!history) {
             history = { petId, data: [] };
             this.data.healthData.weightHistory.push(history);
         }
-        
         history.data.push({
             id: Date.now(),
             date: weightRecord.date || new Date().toISOString().split('T')[0],
@@ -227,30 +293,26 @@ class DataManager {
             notes: weightRecord.notes || ''
         });
         
-        // Сортируем по дате
         history.data.sort((a, b) => new Date(b.date) - new Date(a.date));
         
-        // Обновляем текущий вес питомца
         this.updatePet(petId, { weight: weightRecord.weight });
-        
         this.saveData();
     }
-    
+
     getMedicalRecords(petId) {
         return this.data.healthData.medicalRecords.filter(record => record.petId === petId);
     }
-    
+
     addMedicalRecord(recordData) {
         const newRecord = {
             id: Date.now(),
             ...recordData
         };
-        
         this.data.healthData.medicalRecords.push(newRecord);
         this.saveData();
         return newRecord;
     }
-    
+
     updateMedicalRecord(recordId, recordData) {
         const index = this.data.healthData.medicalRecords.findIndex(r => r.id === recordId);
         if (index !== -1) {
@@ -263,7 +325,7 @@ class DataManager {
         }
         return false;
     }
-    
+
     deleteMedicalRecord(recordId) {
         const index = this.data.healthData.medicalRecords.findIndex(r => r.id === recordId);
         if (index !== -1) {
@@ -273,22 +335,21 @@ class DataManager {
         }
         return false;
     }
-    
+
     getVaccinationSchedule(petId) {
         return this.data.healthData.vaccinationSchedule.filter(v => v.petId === petId);
     }
-    
+
     addVaccination(vaccineData) {
         const newVaccine = {
             id: Date.now(),
             ...vaccineData
         };
-        
         this.data.healthData.vaccinationSchedule.push(newVaccine);
         this.saveData();
         return newVaccine;
     }
-    
+
     updateVaccination(vaccineId, vaccineData) {
         const index = this.data.healthData.vaccinationSchedule.findIndex(v => v.id === vaccineId);
         if (index !== -1) {
@@ -301,334 +362,22 @@ class DataManager {
         }
         return false;
     }
-    
+
     getHealthIndicators(petId, limit = 10) {
         const indicators = this.data.healthData.healthIndicators
             .filter(i => i.petId === petId)
             .sort((a, b) => new Date(b.date) - new Date(a.date));
-        
         return indicators.slice(0, limit);
     }
-    
+
     addHealthIndicator(indicatorData) {
         const newIndicator = {
             id: Date.now(),
             date: new Date().toISOString().split('T')[0],
             ...indicatorData
         };
-        
         this.data.healthData.healthIndicators.push(newIndicator);
         this.saveData();
         return newIndicator;
-    }
-    
-    getHealthRecommendations(petId) {
-        return this.data.healthData.healthRecommendations.filter(r => r.petId === petId);
-    }
-    
-    getRoutineProcedures(petId) {
-        return this.data.healthData.routineProcedures.filter(p => p.petId === petId);
-    }
-    
-    // Генерация истории веса (для обратной совместимости)
-    generateWeightHistory(petId, baseWeight = 4.8) {
-        const history = [];
-        const now = new Date();
-        
-        for (let i = 6; i >= 0; i--) {
-            const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-            const weight = baseWeight + (Math.random() * 0.4 - 0.2); // ±0.2 кг
-            
-            history.push({
-                date: date.toISOString().split('T')[0],
-                weight: parseFloat(weight.toFixed(1)),
-                notes: i === 0 ? 'Текущий вес' : 'Запись веса'
-            });
-        }
-        
-        return history;
-    }
-    
-    saveData() {
-        localStorage.setItem(KINLY_CONST.STORAGE_KEYS.PET_TRACKER, JSON.stringify(this.data));
-    }
-    
-    setData(data) {
-        this.data = { ...this.data, ...data };
-    }
-    
-    getData() {
-        return this.data;
-    }
-    
-    getPets() {
-        return this.data.pets;
-    }
-    
-    getPet(petId) {
-        return this.data.pets.find(pet => pet.id === petId);
-    }
-    
-    addPet(petData) {
-        const newPet = {
-            id: Date.now(),
-            ...petData
-        };
-        
-        this.data.pets.push(newPet);
-        
-        if (!this.data.currentPetId) {
-            this.data.currentPetId = newPet.id;
-        }
-        
-        this.saveData();
-        return newPet;
-    }
-    
-    updatePet(petId, petData) {
-        const index = this.data.pets.findIndex(pet => pet.id === petId);
-        if (index !== -1) {
-            this.data.pets[index] = { ...this.data.pets[index], ...petData };
-            this.saveData();
-            return true;
-        }
-        return false;
-    }
-    
-    deletePet(petId) {
-        const index = this.data.pets.findIndex(pet => pet.id === petId);
-        if (index !== -1) {
-            this.data.pets.splice(index, 1);
-            
-            if (this.data.currentPetId === petId && this.data.pets.length > 0) {
-                this.data.currentPetId = this.data.pets[0].id;
-            } else if (this.data.pets.length === 0) {
-                this.data.currentPetId = null;
-            }
-            
-            this.saveData();
-            return true;
-        }
-        return false;
-    }
-    
-    getCurrentPetId() {
-        return this.data.currentPetId;
-    }
-    
-    setCurrentPetId(petId) {
-        this.data.currentPetId = petId;
-        this.saveData();
-    }
-    
-    getEvents(petId) {
-        return this.data.events.filter(event => event.petId === petId);
-    }
-    
-    addEvent(eventData) {
-        const newEvent = {
-            id: Date.now(),
-            ...eventData
-        };
-        
-        this.data.events.push(newEvent);
-        this.saveData();
-        return newEvent;
-    }
-    
-    updateEvent(eventId, eventData) {
-        const index = this.data.events.findIndex(event => event.id === eventId);
-        if (index !== -1) {
-            this.data.events[index] = { ...this.data.events[index], ...eventData };
-            this.saveData();
-            return true;
-        }
-        return false;
-    }
-    
-    deleteEvent(eventId) {
-        const index = this.data.events.findIndex(event => event.id === eventId);
-        if (index !== -1) {
-            this.data.events.splice(index, 1);
-            this.saveData();
-            return true;
-        }
-        return false;
-    }
-    
-    getMeals(petId) {
-        return this.data.meals.filter(meal => meal.petId === petId);
-    }
-    
-    addMeal(mealData) {
-        const newMeal = {
-            id: Date.now(),
-            ...mealData
-        };
-        
-        this.data.meals.push(newMeal);
-        this.saveData();
-        return newMeal;
-    }
-    
-    updateMeal(mealId, mealData) {
-        const index = this.data.meals.findIndex(meal => meal.id === mealId);
-        if (index !== -1) {
-            this.data.meals[index] = { ...this.data.meals[index], ...mealData };
-            this.saveData();
-            return true;
-        }
-        return false;
-    }
-    
-    deleteMeal(mealId) {
-        const index = this.data.meals.findIndex(meal => meal.id === mealId);
-        if (index !== -1) {
-            this.data.meals.splice(index, 1);
-            this.saveData();
-            return true;
-        }
-        return false;
-    }
-    
-    getReminders(petId) {
-        return this.data.reminders.filter(reminder => reminder.petId === petId);
-    }
-    
-    addReminder(reminderData) {
-        const newReminder = {
-            id: Date.now(),
-            ...reminderData
-        };
-        
-        this.data.reminders.push(newReminder);
-        this.saveData();
-        return newReminder;
-    }
-    
-    updateReminder(reminderId, reminderData) {
-        const index = this.data.reminders.findIndex(reminder => reminder.id === reminderId);
-        if (index !== -1) {
-            this.data.reminders[index] = { ...this.data.reminders[index], ...reminderData };
-            this.saveData();
-            return true;
-        }
-        return false;
-    }
-    
-    deleteReminder(reminderId) {
-        const index = this.data.reminders.findIndex(reminder => reminder.id === reminderId);
-        if (index !== -1) {
-            this.data.reminders.splice(index, 1);
-            this.saveData();
-            return true;
-        }
-        return false;
-    }
-    
-    getCareItems(petId) {
-        return this.data.careItems.filter(item => item.petId === petId);
-    }
-    
-    addCareItem(careItemData) {
-        const newCareItem = {
-            id: Date.now(),
-            ...careItemData
-        };
-        
-        this.data.careItems.push(newCareItem);
-        this.saveData();
-        return newCareItem;
-    }
-    
-    updateCareItem(careItemId, careItemData) {
-        const index = this.data.careItems.findIndex(item => item.id === careItemId);
-        if (index !== -1) {
-            this.data.careItems[index] = { ...this.data.careItems[index], ...careItemData };
-            this.saveData();
-            return true;
-        }
-        return false;
-    }
-    
-    deleteCareItem(careItemId) {
-        const index = this.data.careItems.findIndex(item => item.id === careItemId);
-        if (index !== -1) {
-            this.data.careItems.splice(index, 1);
-            this.saveData();
-            return true;
-        }
-        return false;
-    }
-    
-    getPhotos(petId) {
-        return this.data.photos.filter(photo => photo.petId === petId);
-    }
-    
-    addPhoto(photoData) {
-        const newPhoto = {
-            id: Date.now(),
-            ...photoData
-        };
-        
-        this.data.photos.push(newPhoto);
-        this.saveData();
-        return newPhoto;
-    }
-    
-    updatePhoto(photoId, photoData) {
-        const index = this.data.photos.findIndex(photo => photo.id === photoId);
-        if (index !== -1) {
-            this.data.photos[index] = { ...this.data.photos[index], ...photoData };
-            this.saveData();
-            return true;
-        }
-        return false;
-    }
-    
-    deletePhoto(photoId) {
-        const index = this.data.photos.findIndex(photo => photo.id === photoId);
-        if (index !== -1) {
-            this.data.photos.splice(index, 1);
-            this.saveData();
-            return true;
-        }
-        return false;
-    }
-    
-    getMedicalHistory(petId) {
-        return this.data.events.filter(event => event.petId === petId && event.type === 'medical');
-    }
-    
-    addMedicalHistory(record) {
-        const newRecord = {
-            id: Date.now(),
-            type: 'medical',
-            ...record
-        };
-        
-        this.data.events.push(newRecord);
-        this.saveData();
-        return newRecord;
-    }
-    
-    updateMedicalHistory(recordId, recordData) {
-        const index = this.data.events.findIndex(event => event.id === recordId && event.type === 'medical');
-        if (index !== -1) {
-            this.data.events[index] = { ...this.data.events[index], ...recordData };
-            this.saveData();
-            return true;
-        }
-        return false;
-    }
-    
-    deleteMedicalHistory(recordId) {
-        const index = this.data.events.findIndex(event => event.id === recordId && event.type === 'medical');
-        if (index !== -1) {
-            this.data.events.splice(index, 1);
-            this.saveData();
-            return true;
-        }
-        return false;
     }
 }

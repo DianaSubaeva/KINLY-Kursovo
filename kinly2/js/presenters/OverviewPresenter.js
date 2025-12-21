@@ -7,7 +7,6 @@ class OverviewPresenter extends Presenter {
             this.overviewModal = new OverviewModal(app);
         }
         
-        // Привязываем контекст для обработчиков
         this.handleDocumentClick = this.handleDocumentClick.bind(this);
         this.handleAddEvent = this.handleAddEvent.bind(this);
         this.handleAddCare = this.handleAddCare.bind(this);
@@ -15,10 +14,12 @@ class OverviewPresenter extends Presenter {
     
     getContent() {
         const pet = this.getCurrentPet();
-        const events = this.dataManager.getEvents(pet.id);
         
-        const careItems = this.dataManager.getCareItems ? 
-            this.dataManager.getCareItems(pet.id) : [];
+        // ⚠️ ВАЖНОЕ ИСПРАВЛЕНИЕ: Берем события из MOCK данных
+        const events = this.getMockEvents(pet.id);
+        
+        // ⚠️ ВАЖНОЕ ИСПРАВЛЕНИЕ: Берем уход из MOCK данных
+        const careItems = this.getMockCareItems(pet.id);
         
         const recentCareItems = careItems
             .sort((a, b) => {
@@ -187,18 +188,21 @@ class OverviewPresenter extends Presenter {
                                 <div class="care-entry">
                                     <div class="care-date">${formatDateDisplay(dateKey)}</div>
                                     <div class="care-items">
-                                        ${items.map(item => `
-                                            <div class="care-item" data-care-id="${item.id}">
-                                                <div class="care-icon"><i class="fas fa-${getCareIcon(item.type)}"></i></div>
-                                                <div class="care-details">
-                                                    <strong>${item.title || 'Без названия'}</strong>
-                                                    <span>${item.time ? item.time + ', ' : ''}${formatTimeAgo(item.date, item.time)}</span>
-                                                    <p>${item.description || 'Нет описания'}</p>
-                                                    ${item.notes ? `<small style="color: var(--text-tertiary); font-style: italic;">${item.notes}</small>` : ''}
+                                        ${items.map(item => {
+                                            const careItem = this.findCareItemDetails(item);
+                                            return `
+                                                <div class="care-item" data-care-id="${item.id}">
+                                                    <div class="care-icon"><i class="fas fa-${getCareIcon(careItem.type)}"></i></div>
+                                                    <div class="care-details">
+                                                        <strong>${careItem.title || 'Без названия'}</strong>
+                                                        <span>${careItem.time ? careItem.time + ', ' : ''}${formatTimeAgo(careItem.date, careItem.time)}</span>
+                                                        <p>${careItem.description || 'Нет описания'}</p>
+                                                        ${careItem.notes ? `<small style="color: var(--text-tertiary); font-style: italic;">${careItem.notes}</small>` : ''}
+                                                    </div>
+                                                    <button class="btn-edit care-edit-btn" data-care-id="${item.id}">Редактировать</button>
                                                 </div>
-                                                <button class="btn-edit care-edit-btn" data-care-id="${item.id}">Редактировать</button>
-                                            </div>
-                                        `).join('')}
+                                            `;
+                                        }).join('')}
                                     </div>
                                 </div>
                             `;
@@ -221,6 +225,99 @@ class OverviewPresenter extends Presenter {
                 </div>
             </section>
         `;
+    }
+    
+    // ⚠️ НОВЫЙ МЕТОД: Получение событий из mock данных
+    getMockEvents(petId) {
+        // 1. Сначала проверяем DataManager
+        if (this.app.dataManager && this.app.dataManager.getEvents) {
+            const events = this.app.dataManager.getEvents(petId);
+            if (events && events.length > 0) {
+                console.log('📅 Использую события из DataManager:', events.length);
+                return events;
+            }
+        }
+        
+        // 2. Если в DataManager нет, берем из глобальных mock данных
+        if (window.MOCK_EVENTS && Array.isArray(window.MOCK_EVENTS)) {
+            console.log('📅 Использую MOCK_EVENTS:', window.MOCK_EVENTS.length);
+            return window.MOCK_EVENTS.filter(event => event.petId == petId);
+        }
+        
+        // 3. Если ничего нет - пустой массив
+        console.log('📅 Нет событий для питомца', petId);
+        return [];
+    }
+    
+    // ⚠️ НОВЫЙ МЕТОД: Получение ухода из mock данных
+    getMockCareItems(petId) {
+        // 1. Сначала проверяем DataManager
+        if (this.app.dataManager && this.app.dataManager.getCareItems) {
+            const careItems = this.app.dataManager.getCareItems(petId);
+            if (careItems && careItems.length > 0) {
+                console.log('🛁 Использую уход из DataManager:', careItems.length);
+                return careItems;
+            }
+        }
+        
+        // 2. Если в DataManager нет, берем из глобальных mock данных
+        if (window.MOCK_CARE_ITEMS && Array.isArray(window.MOCK_CARE_ITEMS)) {
+            console.log('🛁 Использую MOCK_CARE_ITEMS');
+            
+            // MOCK_CARE_ITEMS имеет другую структуру: массив объектов с date и items
+            const allCareItems = [];
+            window.MOCK_CARE_ITEMS.forEach(day => {
+                if (day.petId == petId && day.items && Array.isArray(day.items)) {
+                    // Преобразуем структуру
+                    day.items.forEach(item => {
+                        allCareItems.push({
+                            ...item,
+                            petId: petId,
+                            date: day.date // Добавляем дату из родительского объекта
+                        });
+                    });
+                }
+            });
+            
+            console.log('🛁 Преобразовано записей ухода:', allCareItems.length);
+            return allCareItems;
+        }
+        
+        // 3. Если ничего нет - пустой массив
+        console.log('🛁 Нет записей ухода для питомца', petId);
+        return [];
+    }
+    
+    // ⚠️ НОВЫЙ МЕТОД: Получение деталей записи ухода
+    findCareItemDetails(item) {
+        // Если у элемента уже есть все поля, возвращаем как есть
+        if (item.title && item.type) {
+            return item;
+        }
+        
+        // Ищем детали в mock данных
+        if (window.MOCK_CARE_ITEMS) {
+            for (const day of window.MOCK_CARE_ITEMS) {
+                const foundItem = day.items?.find(i => i.id === item.id);
+                if (foundItem) {
+                    return {
+                        ...foundItem,
+                        date: day.date,
+                        petId: day.petId
+                    };
+                }
+            }
+        }
+        
+        // Если не нашли, возвращаем базовые поля
+        return {
+            title: item.title || 'Уход',
+            type: item.type || 'care',
+            description: item.description || '',
+            time: item.time || '',
+            date: item.date || new Date().toISOString().split('T')[0],
+            notes: item.notes || ''
+        };
     }
     
     getEventIcon(type) {
@@ -255,15 +352,11 @@ class OverviewPresenter extends Presenter {
     setupEventListeners() {
         super.setupEventListeners();
         
-        // Удаляем старые обработчики
         this.removeEventListeners();
-        
         this.setupModal();
         
-        // Обработчик для кликов по документу (делегирование)
         document.addEventListener('click', this.handleDocumentClick);
         
-        // Обработчики для кнопок добавления
         const addEventBtn = document.getElementById('add-event-btn');
         if (addEventBtn) {
             addEventBtn.addEventListener('click', this.handleAddEvent);
@@ -276,10 +369,8 @@ class OverviewPresenter extends Presenter {
     }
     
     removeEventListeners() {
-        // Удаляем обработчик кликов по документу
         document.removeEventListener('click', this.handleDocumentClick);
         
-        // Удаляем обработчики с кнопок
         const addEventBtn = document.getElementById('add-event-btn');
         if (addEventBtn) {
             addEventBtn.removeEventListener('click', this.handleAddEvent);
@@ -292,7 +383,6 @@ class OverviewPresenter extends Presenter {
     }
     
     handleDocumentClick(e) {
-        // Обработка кликов на кнопки редактирования событий
         if (e.target.classList.contains('event-edit-btn')) {
             const eventId = parseInt(e.target.dataset.eventId);
             this.setupModal();
@@ -302,7 +392,6 @@ class OverviewPresenter extends Presenter {
             return;
         }
         
-        // Обработка кликов на кнопки редактирования статистики
         if (e.target.closest('.stat-edit-btn')) {
             const statBtn = e.target.closest('.stat-edit-btn');
             const stat = statBtn.dataset.stat;
@@ -313,7 +402,6 @@ class OverviewPresenter extends Presenter {
             return;
         }
         
-        // Обработка кликов на кнопки редактирования ухода
         if (e.target.classList.contains('care-edit-btn')) {
             const careItemId = parseInt(e.target.dataset.careId);
             this.setupModal();
@@ -349,10 +437,34 @@ class OverviewPresenter extends Presenter {
     }
     
     getCurrentPet() {
-        return this.app.getCurrentPet();
+        if (this.app.dataManager) {
+            const petId = this.app.dataManager.getCurrentPetId();
+            if (petId) {
+                const pet = this.app.dataManager.getPet(petId);
+                if (pet) {
+                    this.app.currentPet = pet;
+                    return pet;
+                }
+            }
+        }
+        
+        if (this.app.currentPet) {
+            return this.app.currentPet;
+        }
+        
+        return {
+            id: 0,
+            name: 'Нет питомца',
+            type: 'none',
+            breed: '',
+            age: 0,
+            weight: 0,
+            healthStatus: '',
+            nextVaccination: '',
+            avatar: 'default'
+        };
     }
     
-    // При уничтожении презентера удаляем обработчики
     destroy() {
         this.removeEventListeners();
         super.destroy();

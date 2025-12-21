@@ -31,8 +31,6 @@ class PetManager {
                 </button>
             </div>
         `).join('');
-        
-        // Добавляем обработчики событий
         document.querySelectorAll('.pet-item').forEach(item => {
             item.addEventListener('click', (e) => {
                 if (!e.target.closest('.pet-edit-btn')) {
@@ -59,7 +57,6 @@ class PetManager {
             this.app.showNotification('Питомец добавлен', 'success');
         });
         
-        // Убедимся, что используем правильный метод
         if (modal.open) {
             modal.open();
         } else if (modal.show) {
@@ -94,7 +91,6 @@ class PetManager {
             }
         );
         
-        // Убедимся, что используем правильный метод
         if (modal.open) {
             modal.open();
         } else if (modal.show) {

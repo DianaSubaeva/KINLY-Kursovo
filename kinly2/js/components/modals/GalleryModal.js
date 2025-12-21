@@ -1,8 +1,8 @@
 // modals/GalleryModal.js
 class GalleryModal {
-    constructor(app, galleryPresenter) {  // ← Параметр должен быть galleryPresenter
+    constructor(app, galleryPresenter) { 
         this.app = app;
-        this.currentGalleryPresenter = galleryPresenter; // ← Используем параметр
+        this.currentGalleryPresenter = galleryPresenter; 
         
         console.log('GalleryModal создан с presenter:', galleryPresenter);
         
