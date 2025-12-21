@@ -1,4 +1,4 @@
-// presenters/GalleryPresenter.js
+
 class GalleryPresenter extends Presenter {
     constructor(app) {
         super(app);
@@ -6,17 +6,14 @@ class GalleryPresenter extends Presenter {
         this._galleryModal = null;
     }
     
-    // Геттер для ленивой инициализации GalleryModal
     get galleryModal() {
         if (!this._galleryModal) {
             try {
-                // Проверяем, загружен ли класс GalleryModal
                 if (typeof GalleryModal === 'undefined' && typeof window.GalleryModal === 'undefined') {
                     console.error('GalleryModal не найден в глобальной области!');
                     return null;
                 }
                 
-                // Используем window.GalleryModal если доступен
                 const ModalClass = window.GalleryModal || GalleryModal;
                 
                 // Создаем экземпляр
@@ -34,7 +31,6 @@ class GalleryPresenter extends Presenter {
         const pet = this.getCurrentPet();
         if (!pet) return '';
         
-        // Загружаем фото если их нет
         if (this.photos.length === 0) {
             this.loadPhotos();
         }
