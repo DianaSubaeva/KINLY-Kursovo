@@ -58,6 +58,15 @@ class PetManager {
             this.app.switchPet(newPet.id);
             this.app.showNotification('Питомец добавлен', 'success');
         });
+        
+        // Убедимся, что используем правильный метод
+        if (modal.open) {
+            modal.open();
+        } else if (modal.show) {
+            modal.show();
+        } else {
+            console.error('Модальное окно не имеет методов open/show');
+        }
     }
     
     showEditPetModal(petId) {
@@ -84,5 +93,14 @@ class PetManager {
                 modal.close();
             }
         );
+        
+        // Убедимся, что используем правильный метод
+        if (modal.open) {
+            modal.open();
+        } else if (modal.show) {
+            modal.show();
+        } else {
+            console.error('Модальное окно не имеет методов open/show');
+        }
     }
 }

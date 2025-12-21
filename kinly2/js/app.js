@@ -41,7 +41,10 @@ class App {
         // Загрузка начальной страницы
         this.loadPage('overview');
     }
-    
+     // ДОБАВЬТЕ ЭТОТ МЕТОД ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ
+    getCurrentPet() {
+        return this.currentPet;
+    }
     setupEventListeners() {
         // Навигация
         document.querySelectorAll('.nav-link').forEach(link => {
@@ -73,6 +76,7 @@ class App {
                 link.classList.add('active');
             }
         });
+        
         
         // Обновление хлебных крошек
         this.updateBreadcrumb(page);

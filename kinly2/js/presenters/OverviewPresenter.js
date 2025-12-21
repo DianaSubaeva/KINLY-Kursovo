@@ -1,7 +1,102 @@
 class OverviewPresenter extends Presenter {
+    constructor(app) {
+        super(app);
+        this.overviewModal = null;
+        
+        if (typeof OverviewModal !== 'undefined') {
+            this.overviewModal = new OverviewModal(app);
+        }
+        
+        // Привязываем контекст для обработчиков
+        this.handleDocumentClick = this.handleDocumentClick.bind(this);
+        this.handleAddEvent = this.handleAddEvent.bind(this);
+        this.handleAddCare = this.handleAddCare.bind(this);
+    }
+    
     getContent() {
         const pet = this.getCurrentPet();
         const events = this.dataManager.getEvents(pet.id);
+        
+        const careItems = this.dataManager.getCareItems ? 
+            this.dataManager.getCareItems(pet.id) : [];
+        
+        const recentCareItems = careItems
+            .sort((a, b) => {
+                const dateA = new Date(`${a.date}T${a.time || '00:00'}`);
+                const dateB = new Date(`${b.date}T${b.time || '00:00'}`);
+                return dateB - dateA;
+            });
+        
+        const getCareIcon = (type) => {
+            const icons = {
+                feeding: 'bone',
+                walk: 'walking',
+                grooming: 'cut',
+                bath: 'bath',
+                nails: 'cut',
+                teeth: 'tooth',
+                medication: 'pills',
+                play: 'baseball-ball',
+                training: 'graduation-cap'
+            };
+            return icons[type] || 'heart';
+        };
+        
+        const formatDateDisplay = (dateString) => {
+            if (!dateString) return 'Недавно';
+            
+            const date = new Date(dateString);
+            const today = new Date();
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+            
+            if (date.toDateString() === today.toDateString()) {
+                return 'Сегодня';
+            } else if (date.toDateString() === yesterday.toDateString()) {
+                return 'Вчера';
+            } else {
+                return date.toLocaleDateString('ru-RU', {
+                    day: 'numeric',
+                    month: 'long'
+                });
+            }
+        };
+        
+        const formatTimeAgo = (dateString, timeString) => {
+            if (!dateString) return 'недавно';
+            
+            const itemDate = new Date(dateString + (timeString ? 'T' + timeString : ''));
+            if (isNaN(itemDate.getTime())) return 'недавно';
+            
+            const now = new Date();
+            const diffMs = now - itemDate;
+            const diffMinutes = Math.floor(diffMs / (1000 * 60));
+            const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+            const diffDays = Math.floor(diffHours / 24);
+            
+            if (diffMinutes < 60) {
+                return diffMinutes <= 1 ? 'только что' : `${diffMinutes} мин назад`;
+            } else if (diffHours < 24) {
+                return `${diffHours} час${diffHours === 1 ? '' : (diffHours > 1 && diffHours < 5 ? 'а' : 'ов')} назад`;
+            } else if (diffDays === 1) {
+                return 'вчера';
+            } else if (diffDays < 7) {
+                return `${diffDays} дн${diffDays === 1 ? 'ь' : 'я'} назад`;
+            } else {
+                return `${diffDays} дней назад`;
+            }
+        };
+        
+        const groupedCareItems = {};
+        recentCareItems.forEach(item => {
+            const dateKey = item.date || new Date().toISOString().split('T')[0];
+            if (!groupedCareItems[dateKey]) {
+                groupedCareItems[dateKey] = [];
+            }
+            groupedCareItems[dateKey].push(item);
+        });
+        
+        const sortedDates = Object.keys(groupedCareItems).sort((a, b) => new Date(b) - new Date(a));
         
         return `
             <section class="full-width-section">
@@ -86,29 +181,42 @@ class OverviewPresenter extends Presenter {
                 </div>
                 <div class="care-journal">
                     <div class="care-timeline">
-                        <div class="care-entry">
-                            <div class="care-date">Сегодня</div>
-                            <div class="care-items">
-                                <div class="care-item">
-                                    <div class="care-icon"><i class="fas fa-bone"></i></div>
-                                    <div class="care-details">
-                                        <strong>Кормление</strong>
-                                        <span>2 часа назад</span>
-                                        <p>Сухой корм Premium 60г</p>
+                        ${sortedDates.length > 0 ? sortedDates.map(dateKey => {
+                            const items = groupedCareItems[dateKey];
+                            return `
+                                <div class="care-entry">
+                                    <div class="care-date">${formatDateDisplay(dateKey)}</div>
+                                    <div class="care-items">
+                                        ${items.map(item => `
+                                            <div class="care-item" data-care-id="${item.id}">
+                                                <div class="care-icon"><i class="fas fa-${getCareIcon(item.type)}"></i></div>
+                                                <div class="care-details">
+                                                    <strong>${item.title || 'Без названия'}</strong>
+                                                    <span>${item.time ? item.time + ', ' : ''}${formatTimeAgo(item.date, item.time)}</span>
+                                                    <p>${item.description || 'Нет описания'}</p>
+                                                    ${item.notes ? `<small style="color: var(--text-tertiary); font-style: italic;">${item.notes}</small>` : ''}
+                                                </div>
+                                                <button class="btn-edit care-edit-btn" data-care-id="${item.id}">Редактировать</button>
+                                            </div>
+                                        `).join('')}
                                     </div>
-                                    <button class="btn-edit">Редактировать</button>
                                 </div>
-                                <div class="care-item">
-                                    <div class="care-icon"><i class="fas fa-walking"></i></div>
-                                    <div class="care-details">
-                                        <strong>Прогулка</strong>
-                                        <span>4 часа назад</span>
-                                        <p>Утренняя прогулка в парке</p>
+                            `;
+                        }).join('') : `
+                            <div class="care-entry">
+                                <div class="care-date">Сегодня</div>
+                                <div class="care-items">
+                                    <div class="care-item">
+                                        <div class="care-icon"><i class="fas fa-plus-circle"></i></div>
+                                        <div class="care-details">
+                                            <strong>Нет записей ухода</strong>
+                                            <span>Добавьте первую запись</span>
+                                            <p>Нажмите кнопку "Добавить запись" выше</p>
+                                        </div>
                                     </div>
-                                    <button class="btn-edit">Редактировать</button>
                                 </div>
                             </div>
-                        </div>
+                        `}
                     </div>
                 </div>
             </section>
@@ -128,321 +236,125 @@ class OverviewPresenter extends Presenter {
         return icons[type] || 'calendar';
     }
     
+    formatDate(dateString) {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('ru-RU', { 
+            day: 'numeric', 
+            month: 'long' 
+        });
+    }
+    
+    calculateDaysLeft(dateString) {
+        const today = new Date();
+        const targetDate = new Date(dateString);
+        const diffTime = targetDate - today;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays > 0 ? diffDays : 0;
+    }
+    
     setupEventListeners() {
-        // Добавление события
+        super.setupEventListeners();
+        
+        // Удаляем старые обработчики
+        this.removeEventListeners();
+        
+        this.setupModal();
+        
+        // Обработчик для кликов по документу (делегирование)
+        document.addEventListener('click', this.handleDocumentClick);
+        
+        // Обработчики для кнопок добавления
         const addEventBtn = document.getElementById('add-event-btn');
         if (addEventBtn) {
-            addEventBtn.addEventListener('click', () => {
-                this.showAddEventModal();
-            });
+            addEventBtn.addEventListener('click', this.handleAddEvent);
         }
         
-        // Редактирование события
-        document.querySelectorAll('.event-edit-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const eventId = parseInt(e.target.dataset.eventId);
-                this.showEditEventModal(eventId);
-            });
-        });
-        
-        // Редактирование статистики
-        document.querySelectorAll('.stat-edit-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const stat = e.target.closest('.stat-edit-btn').dataset.stat;
-                this.showEditStatModal(stat);
-            });
-        });
-        
-        // Добавление записи ухода
         const addCareBtn = document.getElementById('add-care-btn');
         if (addCareBtn) {
-            addCareBtn.addEventListener('click', () => {
-                this.showAddCareModal();
-            });
+            addCareBtn.addEventListener('click', this.handleAddCare);
+        }
+    }
+    
+    removeEventListeners() {
+        // Удаляем обработчик кликов по документу
+        document.removeEventListener('click', this.handleDocumentClick);
+        
+        // Удаляем обработчики с кнопок
+        const addEventBtn = document.getElementById('add-event-btn');
+        if (addEventBtn) {
+            addEventBtn.removeEventListener('click', this.handleAddEvent);
         }
         
-        // Редактирование записи ухода
-        document.querySelectorAll('.care-item .btn-edit').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const careItem = e.target.closest('.care-item');
-                const title = careItem.querySelector('strong').textContent;
-                this.showEditCareModal(title);
-            });
-        });
+        const addCareBtn = document.getElementById('add-care-btn');
+        if (addCareBtn) {
+            addCareBtn.removeEventListener('click', this.handleAddCare);
+        }
     }
     
- showEditStatModal(stat) {
-        const pet = this.getCurrentPet();
-        let title = '';
-        let content = '';
-        
-        switch(stat) {
-            case 'healthStatus':
-                title = 'Состояние здоровья';
-                content = `
-                    <form id="edit-stat-form">
-                        <div class="form-group">
-                            <label for="stat-value">Состояние здоровья</label>
-                            <select id="stat-value">
-                                <option value="Отличное" ${pet.healthStatus === 'Отличное' ? 'selected' : ''}>Отличное</option>
-                                <option value="Хорошее" ${pet.healthStatus === 'Хорошее' ? 'selected' : ''}>Хорошее</option>
-                                <option value="Удовлетворительное" ${pet.healthStatus === 'Удовлетворительное' ? 'selected' : ''}>Удовлетворительное</option>
-                                <option value="Требует внимания" ${pet.healthStatus === 'Требует внимания' ? 'selected' : ''}>Требует внимания</option>
-                            </select>
-                        </div>
-                    </form>
-                `;
-                break;
-                
-            case 'weight':
-                title = 'Текущий вес';
-                content = `
-                    <form id="edit-stat-form">
-                        <div class="form-group">
-                            <label for="stat-value">Вес (кг)</label>
-                            <input type="number" id="stat-value" value="${pet.weight || '4.8'}" step="0.1" min="0" max="100" required>
-                        </div>
-                    </form>
-                `;
-                break;
-                
-            case 'age':
-                title = 'Возраст';
-                content = `
-                    <form id="edit-stat-form">
-                        <div class="form-group">
-                            <label for="stat-value">Возраст (лет)</label>
-                            <input type="number" id="stat-value" value="${pet.age || '3'}" min="0" max="50" required>
-                        </div>
-                    </form>
-                `;
-                break;
-                
-            case 'vaccination':
-                title = 'Дата следующей вакцинации';
-                const nextVaccinationDate = pet.nextVaccination || new Date(Date.now() + 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-                content = `
-                    <form id="edit-stat-form">
-                        <div class="form-group">
-                            <label for="stat-value">Дата следующей вакцинации</label>
-                            <input type="date" id="stat-value" value="${nextVaccinationDate}" required>
-                        </div>
-                    </form>
-                `;
-                break;
+    handleDocumentClick(e) {
+        // Обработка кликов на кнопки редактирования событий
+        if (e.target.classList.contains('event-edit-btn')) {
+            const eventId = parseInt(e.target.dataset.eventId);
+            this.setupModal();
+            if (this.overviewModal) {
+                this.overviewModal.showEditEventModal(eventId);
+            }
+            return;
         }
         
-        this.modalManager.showModal({
-            title: title,
-            content: content,
-            buttons: [
-                { 
-                    text: 'Отменить', 
-                    type: 'secondary', 
-                    action: 'close' 
-                },
-                { 
-                    text: 'Сохранить', 
-                    type: 'primary', 
-                    action: () => {
-                        const newValue = document.getElementById('stat-value').value;
-                        const updateData = {};
-                        
-                        switch(stat) {
-                            case 'healthStatus':
-                                updateData.healthStatus = newValue;
-                                break;
-                            case 'weight':
-                                updateData.weight = parseFloat(newValue);
-                                // Добавляем запись в историю веса
-                                const weightHistory = pet.weightHistory || [];
-                                weightHistory.push({
-                                    date: new Date().toISOString().split('T')[0],
-                                    weight: parseFloat(newValue)
-                                });
-                                updateData.weightHistory = weightHistory;
-                                break;
-                            case 'age':
-                                updateData.age = parseInt(newValue);
-                                break;
-                            case 'vaccination':
-                                updateData.nextVaccination = newValue;
-                                break;
-                        }
-                        
-                        this.dataManager.updatePet(pet.id, updateData);
-                        this.app.saveData();
-                        // ОБНОВЛЯЕМ ДАННЫЕ ТЕКУЩЕГО ПИТОМЦА В ПРИЛОЖЕНИИ
-                        this.app.updateCurrentPetData();
-                        this.app.showNotification('Данные обновлены', 'success');
-                        this.render();
-                    }
-                }
-            ]
-        });
-    }
-    
-    showEditEventModal(eventId) {
-        const pet = this.getCurrentPet();
-        const events = this.dataManager.getEvents(pet.id);
-        const event = events.find(e => e.id === eventId);
+        // Обработка кликов на кнопки редактирования статистики
+        if (e.target.closest('.stat-edit-btn')) {
+            const statBtn = e.target.closest('.stat-edit-btn');
+            const stat = statBtn.dataset.stat;
+            this.setupModal();
+            if (this.overviewModal) {
+                this.overviewModal.showEditStatModal(stat);
+            }
+            return;
+        }
         
-        if (!event) return;
+        // Обработка кликов на кнопки редактирования ухода
+        if (e.target.classList.contains('care-edit-btn')) {
+            const careItemId = parseInt(e.target.dataset.careId);
+            this.setupModal();
+            if (this.overviewModal) {
+                this.overviewModal.showEditCareModalById(careItemId);
+            }
+            return;
+        }
+    }
+    
+    handleAddEvent() {
+        this.setupModal();
+        if (this.overviewModal) {
+            this.overviewModal.showAddEventModal();
+        }
+    }
+    
+    handleAddCare() {
+        this.setupModal();
+        if (this.overviewModal) {
+            this.overviewModal.showAddCareModal();
+        }
+    }
+    
+    setupModal() {
+        if (!this.overviewModal && typeof OverviewModal !== 'undefined') {
+            this.overviewModal = new OverviewModal(this.app);
+        }
         
-        this.modalManager.showModal({
-            title: 'Редактировать событие',
-            content: `
-                <form id="event-form">
-                    <div class="form-group">
-                        <label for="event-title">Название события</label>
-                        <input type="text" id="event-title" value="${event.title}" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="event-description">Описание</label>
-                        <textarea id="event-description" rows="3">${event.description}</textarea>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="event-date">Дата</label>
-                            <input type="date" id="event-date" value="${event.date}" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="event-time">Время</label>
-                            <input type="time" id="event-time" value="${event.time}" required>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="event-type">Тип события</label>
-                        <select id="event-type">
-                            <option value="medical" ${event.type === 'medical' ? 'selected' : ''}>Медицинское</option>
-                            <option value="medication" ${event.type === 'medication' ? 'selected' : ''}>Лекарства</option>
-                            <option value="grooming" ${event.type === 'grooming' ? 'selected' : ''}>Уход</option>
-                            <option value="bath" ${event.type === 'bath' ? 'selected' : ''}>Купание</option>
-                            <option value="walk" ${event.type === 'walk' ? 'selected' : ''}>Прогулка</option>
-                            <option value="play" ${event.type === 'play' ? 'selected' : ''}>Игры</option>
-                        </select>
-                    </div>
-                </form>
-            `,
-            buttons: [
-                { 
-                    text: 'Отменить', 
-                    type: 'secondary', 
-                    action: 'close' 
-                },
-                { 
-                    text: 'Удалить', 
-                    type: 'secondary', 
-                    action: () => {
-                        if (confirm('Вы уверены, что хотите удалить это событие?')) {
-                            this.dataManager.deleteEvent(eventId);
-                            this.app.saveData();
-                            this.app.showNotification('Событие удалено', 'warning');
-                            this.render();
-                        }
-                    }
-                },
-                { 
-                    text: 'Сохранить', 
-                    type: 'primary', 
-                    action: () => {
-                        const eventData = {
-                            title: document.getElementById('event-title').value,
-                            description: document.getElementById('event-description').value,
-                            date: document.getElementById('event-date').value,
-                            time: document.getElementById('event-time').value,
-                            type: document.getElementById('event-type').value
-                        };
-                        
-                        this.dataManager.updateEvent(eventId, eventData);
-                        this.app.saveData();
-                        this.app.showNotification('Событие обновлено', 'success');
-                        this.render();
-                    }
-                }
-            ]
-        });
+        if (this.overviewModal && typeof this.overviewModal.setOverviewPresenter === 'function') {
+            this.overviewModal.setOverviewPresenter(this);
+        }
     }
     
-    showAddCareModal() {
-        this.modalManager.showModal({
-            title: 'Добавить запись ухода',
-            content: `
-                <form id="care-form">
-                    <div class="form-group">
-                        <label for="care-type">Тип ухода</label>
-                        <select id="care-type">
-                            <option value="feeding">Кормление</option>
-                            <option value="walk">Прогулка</option>
-                            <option value="grooming">Уход за шерстью</option>
-                            <option value="bath">Купание</option>
-                            <option value="nails">Стрижка когтей</option>
-                            <option value="teeth">Чистка зубов</option>
-                            <option value="medication">Лекарства</option>
-                            <option value="play">Игры</option>
-                            <option value="training">Тренировка</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="care-title">Название</label>
-                        <input type="text" id="care-title" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="care-description">Описание</label>
-                        <textarea id="care-description" rows="3" required></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label for="care-notes">Примечания</label>
-                        <textarea id="care-notes" rows="2"></textarea>
-                    </div>
-                </form>
-            `,
-            buttons: [
-                { 
-                    text: 'Отменить', 
-                    type: 'secondary', 
-                    action: 'close' 
-                },
-                { 
-                    text: 'Добавить', 
-                    type: 'primary', 
-                    action: () => {
-                        this.app.showNotification('Запись ухода добавлена', 'success');
-                    }
-                }
-            ]
-        });
+    getCurrentPet() {
+        return this.app.getCurrentPet();
     }
     
-    showEditCareModal(title) {
-        this.modalManager.showModal({
-            title: 'Редактировать запись ухода',
-            content: `
-                <form id="care-form">
-                    <div class="form-group">
-                        <label for="care-title">Название</label>
-                        <input type="text" id="care-title" value="${title}" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="care-description">Описание</label>
-                        <textarea id="care-description" rows="3" required>Описание процедуры</textarea>
-                    </div>
-                </form>
-            `,
-            buttons: [
-                { 
-                    text: 'Отменить', 
-                    type: 'secondary', 
-                    action: 'close' 
-                },
-                { 
-                    text: 'Сохранить', 
-                    type: 'primary', 
-                    action: () => {
-                        this.app.showNotification('Запись ухода обновлена', 'success');
-                    }
-                }
-            ]
-        });
+    // При уничтожении презентера удаляем обработчики
+    destroy() {
+        this.removeEventListeners();
+        super.destroy();
     }
 }

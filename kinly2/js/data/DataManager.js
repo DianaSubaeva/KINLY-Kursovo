@@ -1,9 +1,6 @@
-
+// js/data/DataManager.js
 class DataManager {
     constructor() {
-        this.api = new ApiService();
-        this.useApi = false; 
-        
         this.data = {
             pets: [],
             currentPetId: null,
@@ -23,6 +20,9 @@ class DataManager {
             }
         };
         
+        // Простая проверка - если есть API, используем его
+        this.useApi = window.apiService !== undefined;
+        
         this.loadInitialData();
     }
     
@@ -31,28 +31,16 @@ class DataManager {
         
         if (savedData) {
             this.data = JSON.parse(savedData);
+            console.log('📥 Данные загружены из localStorage');
         } else {
-            // Пробуем загрузить питомцев из API, если подключено
-            try {
-                if (this.useApi) {
-                    const apiPets = await this.api.getPets();
-                    console.log('✅ Питомцы загружены из API:', apiPets);
-                    this.data.pets = apiPets;
-                } else {
-                    this.data.pets = MOCK_PETS || [];
-                }
-            } catch (error) {
-                console.warn('⚠️ API недоступно, использую mock данные');
-                this.data.pets = MOCK_PETS || [];
-            }
-            
-            this.data.currentPetId = this.data.pets.length > 0 ? this.data.pets[0].id : null;
-            this.data.events = MOCK_EVENTS || [];
-            this.data.meals = MOCK_MEALS || [];
-            this.data.careItems = MOCK_CARE_ITEMS || [];
-            this.data.photos = MOCK_PHOTOS || [];
-            this.data.reminders = MOCK_REMINDERS || [];
-            this.data.healthData = MOCK_HEALTH || {
+            // Просто загружаем mock данные
+            this.data.pets = window.MOCK_PETS || [];
+            this.data.events = window.MOCK_EVENTS || [];
+            this.data.meals = window.MOCK_MEALS || [];
+            this.data.careItems = window.MOCK_CARE_ITEMS || [];
+            this.data.photos = window.MOCK_PHOTOS || [];
+            this.data.reminders = window.MOCK_REMINDERS || [];
+            this.data.healthData = window.MOCK_HEALTH || {
                 metrics: [],
                 weightHistory: [],
                 medicalRecords: [],
@@ -61,110 +49,32 @@ class DataManager {
                 healthRecommendations: [],
                 routineProcedures: []
             };
+            
+            if (this.data.pets.length > 0) {
+                this.data.currentPetId = this.data.pets[0].id;
+            }
+            
+            console.log('📥 Загружены mock данные');
         }
     }
     
-    // ===== НОВЫЕ МЕТОДЫ ДЛЯ РАБОТЫ С API =====
-    
-    async testApiConnection() {
-        try {
-            const pets = await this.api.getPets();
-            this.useApi = true;
-            console.log('✅ API подключено успешно! Получено питомцев:', pets.length);
-            return true;
-        } catch (error) {
-            console.warn('❌ API недоступно, работаю в оффлайн режиме');
-            this.useApi = false;
-            return false;
-        }
-    }
-    
-    async syncPetsWithApi() {
-        if (!this.useApi) return false;
-        
-        try {
-            const apiPets = await this.api.getPets();
-            // Синхронизируем с локальными данными
-            this.data.pets = apiPets;
-            this.saveData();
-            console.log('✅ Данные синхронизированы с API');
-            return true;
-        } catch (error) {
-            console.error('❌ Ошибка синхронизации с API:', error);
-            return false;
-        }
-    }
-     async addPetWithApi(petData) {
-        console.log('🔄 Добавляю питомца...');
-        
-        // 1. Сохраняем локально
-        const newPet = {
-            id: Date.now(),
-            ...petData
-        };
-        
-        this.data.pets.push(newPet);
-        this.saveData();
-        console.log('✅ Питомец сохранен локально');
-        
-        // 2. Пробуем отправить в Beeceptor
-        try {
-            console.log('📤 Отправляю в Beeceptor...');
-            const apiResponse = await this.api.createPet(petData);
-            console.log('✅ Ответ от Beeceptor:', apiResponse);
-        } catch (error) {
-            console.log('⚠️ Не удалось отправить в Beeceptor, работаю локально');
-        }
-        
-        return newPet;
-     }
-    
-    // ===== ОБНОВЛЕННЫЕ МЕТОДЫ ДЛЯ ПИТОМЦЕВ =====
-    
+    // ===== ПРОСТЫЕ МЕТОДЫ ДЛЯ ПИТОМЦЕВ =====
     getPets() {
         return this.data.pets;
     }
     
-    async getPet(petId) {
-        // Сначала ищем локально
-        const localPet = this.data.pets.find(pet => pet.id === petId);
-        if (localPet) return localPet;
-        
-        // Если не нашли и API активно, пробуем получить из API
-        if (this.useApi) {
-            try {
-                const apiPet = await this.api.getPet(petId);
-                // Добавляем в локальные данные
-                if (!this.data.pets.find(p => p.id == apiPet.id)) {
-                    this.data.pets.push(apiPet);
-                }
-                return apiPet;
-            } catch (error) {
-                console.warn('Не удалось получить питомца из API:', error);
-            }
-        }
-        
-        return null;
+    getPet(petId) {
+        return this.data.pets.find(pet => pet.id === petId);
     }
     
     async addPet(petData) {
+        console.log('➕ Добавляю питомца:', petData);
+        
+        // Генерируем простой ID
         const newPet = {
             id: Date.now(),
             ...petData
         };
-        
-        // Пробуем сохранить в API, если подключено
-        if (this.useApi) {
-            try {
-                const apiPet = await this.api.createPet(petData);
-                console.log('✅ Питомец создан в API:', apiPet);
-                // Используем ID из API
-                newPet.id = apiPet.id;
-                newPet.apiId = apiPet.id; // Сохраняем API ID отдельно
-            } catch (error) {
-                console.warn('❌ Не удалось создать питомца в API:', error);
-            }
-        }
         
         // Сохраняем локально
         this.data.pets.push(newPet);
@@ -174,56 +84,90 @@ class DataManager {
         }
         
         this.saveData();
+        
+        // ПРОБУЕМ ОТПРАВИТЬ В API (если есть)
+        if (this.useApi && window.apiService) {
+            try {
+                const response = await window.apiService.createPet(petData);
+                console.log('✅ Питомец сохранен в API:', response);
+            } catch (error) {
+                console.log('⚠️ Не удалось отправить в API:', error.message);
+            }
+        }
+        
         return newPet;
     }
     
     async updatePet(petId, petData) {
         const index = this.data.pets.findIndex(pet => pet.id === petId);
-        if (index !== -1) {
-            // Обновляем в API, если подключено
-            if (this.useApi && this.data.pets[index].apiId) {
-                try {
-                    await this.api.updatePet(this.data.pets[index].apiId, petData);
-                    console.log('✅ Питомец обновлен в API');
-                } catch (error) {
-                    console.warn('❌ Не удалось обновить питомца в API:', error);
-                }
+        if (index === -1) return false;
+        
+        // Обновляем локально
+        this.data.pets[index] = { ...this.data.pets[index], ...petData };
+        this.saveData();
+        
+        // Пробуем отправить в API
+        if (this.useApi && window.apiService) {
+            try {
+                await window.apiService.updatePet(petId, petData);
+                console.log('✅ Питомец обновлен в API');
+            } catch (error) {
+                console.log('⚠️ Не удалось обновить в API');
             }
-            
-            // Обновляем локально
-            this.data.pets[index] = { ...this.data.pets[index], ...petData };
-            this.saveData();
-            return true;
         }
-        return false;
+        
+        return true;
     }
     
     async deletePet(petId) {
         const index = this.data.pets.findIndex(pet => pet.id === petId);
-        if (index !== -1) {
-            // Удаляем из API, если подключено
-            if (this.useApi && this.data.pets[index].apiId) {
-                try {
-                    await this.api.deletePet(this.data.pets[index].apiId);
-                    console.log('✅ Питомец удален из API');
-                } catch (error) {
-                    console.warn('❌ Не удалось удалить питомца из API:', error);
-                }
-            }
-            
-            // Удаляем локально
-            this.data.pets.splice(index, 1);
-            
-            if (this.data.currentPetId === petId && this.data.pets.length > 0) {
-                this.data.currentPetId = this.data.pets[0].id;
-            } else if (this.data.pets.length === 0) {
-                this.data.currentPetId = null;
-            }
-            
-            this.saveData();
-            return true;
+        if (index === -1) return false;
+        
+        // Удаляем локально
+        this.data.pets.splice(index, 1);
+        
+        if (this.data.currentPetId === petId && this.data.pets.length > 0) {
+            this.data.currentPetId = this.data.pets[0].id;
+        } else if (this.data.pets.length === 0) {
+            this.data.currentPetId = null;
         }
-        return false;
+        
+        this.saveData();
+        
+        // Пробуем удалить из API
+        if (this.useApi && window.apiService) {
+            try {
+                await window.apiService.deletePet(petId);
+                console.log('✅ Питомец удален из API');
+            } catch (error) {
+                console.log('⚠️ Не удалось удалить из API');
+            }
+        }
+        
+        return true;
+    }
+    
+    // ===== ПРОСТЫЕ GETTERS =====
+    getCurrentPetId() {
+        return this.data.currentPetId;
+    }
+    
+    setCurrentPetId(petId) {
+        this.data.currentPetId = petId;
+        this.saveData();
+    }
+    
+    getEvents(petId) {
+        return this.data.events.filter(event => event.petId === petId);
+    }
+    
+    getCareItems(petId) {
+        return this.data.careItems.filter(item => item.petId === petId);
+    }
+    
+    // ===== ОСТАЛЬНЫЕ МЕТОДЫ (оставляем как были) =====
+    saveData() {
+        localStorage.setItem(KINLY_CONST.STORAGE_KEYS.PET_TRACKER, JSON.stringify(this.data));
     }
     // ===== МЕТОДЫ ДЛЯ РАБОТЫ С ЗДОРОВЬЕМ =====
     

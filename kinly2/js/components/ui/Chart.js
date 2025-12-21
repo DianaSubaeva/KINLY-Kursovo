@@ -20,7 +20,15 @@ export const CHART_CONFIG = {
                     borderColor: '#374151',
                     borderWidth: 1,
                     cornerRadius: 6,
-                    displayColors: false
+                    displayColors: false,
+                    callbacks: {
+                        // Форматирование значений в тултипе
+                        label: function(context) {
+                            let value = context.parsed.y;
+                            // Ограничение до 3 знаков после запятой
+                            return value.toFixed(3) + ' кг';
+                        }
+                    }
                 }
             },
             scales: {
@@ -47,8 +55,10 @@ export const CHART_CONFIG = {
                         font: {
                             size: 12
                         },
+                        // Ограничение до 3 знаков после запятой для меток оси Y
                         callback: function(value) {
-                            return value + ' кг';
+                            // Используем toFixed(3) для максимум 3 знаков после запятой
+                            return parseFloat(value).toFixed(3) + ' кг';
                         }
                     }
                 }
@@ -77,6 +87,16 @@ export const CHART_CONFIG = {
             plugins: {
                 legend: {
                     display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        // Форматирование значений в тултипе для графика активности
+                        label: function(context) {
+                            let value = context.parsed.y;
+                            // Ограничение до 3 знаков после запятой
+                            return value.toFixed(3) + '%';
+                        }
+                    }
                 }
             },
             scales: {
@@ -89,8 +109,10 @@ export const CHART_CONFIG = {
                     beginAtZero: true,
                     max: 100,
                     ticks: {
+                        // Ограничение до 3 знаков после запятой для меток оси Y
                         callback: function(value) {
-                            return value + '%';
+                            // Используем toFixed(3) для максимум 3 знаков после запятой
+                            return parseFloat(value).toFixed(3) + '%';
                         }
                     }
                 }
@@ -168,7 +190,8 @@ export function generateWeightData(baseWeight = 4.8, period = 'month') {
         
         data.push({
             date: date.toISOString().split('T')[0],
-            weight: parseFloat(weight.toFixed(1))
+            // Ограничиваем до 3 знаков после запятой при генерации данных
+            weight: parseFloat(weight.toFixed(3))
         });
     }
     
@@ -195,4 +218,15 @@ export function formatChartDate(dateString, period = 'month') {
         default:
             return date.toLocaleDateString('ru-RU');
     }
+}
+
+/**
+ * Утилитарная функция для форматирования чисел с максимум 3 знаками после запятой
+ * @param {number} value - Число для форматирования
+ * @param {string} suffix - Суффикс (например, ' кг', '%')
+ * @returns {string} Отформатированная строка
+ */
+export function formatChartValue(value, suffix = '') {
+    // Ограничиваем до 3 знаков после запятой
+    return parseFloat(value).toFixed(3) + suffix;
 }

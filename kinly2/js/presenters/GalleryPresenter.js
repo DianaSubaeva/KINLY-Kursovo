@@ -1,13 +1,40 @@
+// presenters/GalleryPresenter.js
 class GalleryPresenter extends Presenter {
     constructor(app) {
         super(app);
         this.photos = [];
+        this._galleryModal = null;
+    }
+    
+    // Геттер для ленивой инициализации GalleryModal
+    get galleryModal() {
+        if (!this._galleryModal) {
+            try {
+                // Проверяем, загружен ли класс GalleryModal
+                if (typeof GalleryModal === 'undefined' && typeof window.GalleryModal === 'undefined') {
+                    console.error('GalleryModal не найден в глобальной области!');
+                    return null;
+                }
+                
+                // Используем window.GalleryModal если доступен
+                const ModalClass = window.GalleryModal || GalleryModal;
+                
+                // Создаем экземпляр
+                this._galleryModal = new ModalClass(this.app, this);
+                
+            } catch (error) {
+                console.error('Ошибка создания GalleryModal:', error);
+                this._galleryModal = null;
+            }
+        }
+        return this._galleryModal;
     }
     
     getContent() {
         const pet = this.getCurrentPet();
         if (!pet) return '';
         
+        // Загружаем фото если их нет
         if (this.photos.length === 0) {
             this.loadPhotos();
         }
@@ -16,7 +43,7 @@ class GalleryPresenter extends Presenter {
             <section class="full-width-section">
                 <div class="section-header">
                     <h2>Галерея ${pet.name}</h2>
-                    <p>Фотографии роста и развития вашего питомца</p>
+                    <p>Фотографии вашего питомца</p>
                     <button class="add-photo-btn" id="add-photo-btn">
                         <i class="fas fa-plus"></i> Добавить фото
                     </button>
@@ -36,11 +63,23 @@ class GalleryPresenter extends Presenter {
                                     <span>${photo.description}</span>
                                 </div>
                                 <div class="photo-actions">
-                                    <button class="btn-edit photo-edit-btn" data-photo-id="${photo.id}">Редактировать</button>
-                                    <button class="btn-edit photo-delete-btn" data-photo-id="${photo.id}">Удалить</button>
+                                    <button class="btn-edit photo-edit-btn" data-photo-id="${photo.id}">
+                                        <i class="fas fa-edit"></i> Редактировать
+                                    </button>
+                                    <button class="btn-delete photo-delete-btn" data-photo-id="${photo.id}">
+                                        <i class="fas fa-trash"></i> Удалить
+                                    </button>
                                 </div>
                             </div>
-                        `).join('') : '<p style="text-align: center; color: var(--text-tertiary); padding: 20px;">Нет фотографий</p>'}
+                        `).join('') : `
+                            <div class="empty-gallery">
+                                <i class="fas fa-images" style="font-size: 48px; color: #ccc; margin-bottom: 16px;"></i>
+                                <p style="text-align: center; color: var(--text-tertiary); margin: 0;">
+                                    Нет фотографий<br>
+                                    <small>Добавьте первую фотографию вашего питомца</small>
+                                </p>
+                            </div>
+                        `}
                     </div>
                 </div>
             </section>
@@ -54,10 +93,14 @@ class GalleryPresenter extends Presenter {
         const savedData = localStorage.getItem(`photos_${pet.id}`);
         
         if (savedData) {
-            this.photos = JSON.parse(savedData);
+            try {
+                this.photos = JSON.parse(savedData);
+            } catch (error) {
+                console.log('Ошибка загрузки фото, начнем с пустого списка');
+                this.photos = [];
+            }
         } else {
             this.photos = [];
-            this.savePhotos();
         }
         
         return this.photos;
@@ -65,275 +108,165 @@ class GalleryPresenter extends Presenter {
     
     savePhotos() {
         const pet = this.getCurrentPet();
-        if (pet) {
-            localStorage.setItem(`photos_${pet.id}`, JSON.stringify(this.photos));
+        if (!pet) return;
+        
+        try {
+            const toSave = this.photos.slice(0, 10);
+            localStorage.setItem(`photos_${pet.id}`, JSON.stringify(toSave));
+        } catch (error) {
+            console.log('Ошибка сохранения фото:', error);
+        }
+    }
+    
+    deletePhoto(photoId) {
+        const index = this.photos.findIndex(p => p.id === photoId);
+        if (index !== -1) {
+            const photo = this.photos[index];
+            this.photos.splice(index, 1);
+            this.savePhotos();
+            this.app.showNotification(`Фото "${photo.title}" удалено`, 'warning');
+            this.render();
         }
     }
     
     setupEventListeners() {
         super.setupEventListeners();
         
+        // Кнопка добавления фото
         const addPhotoBtn = document.getElementById('add-photo-btn');
         if (addPhotoBtn) {
-            addPhotoBtn.addEventListener('click', () => {
-                this.showAddPhotoModal();
+            addPhotoBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                
+                // Получаем galleryModal через геттер
+                const modal = this.galleryModal;
+                if (modal && modal.showAddPhotoModal) {
+                    modal.showAddPhotoModal();
+                } else {
+                    console.error('GalleryModal не доступен');
+                    alert('Окно добавления фото временно недоступно');
+                }
             });
         }
         
+        // Кнопки редактирования
         document.querySelectorAll('.photo-edit-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
+                e.preventDefault();
                 e.stopPropagation();
-                const photoId = parseInt(e.target.dataset.photoId);
-                this.showEditPhotoModal(photoId);
+                const photoId = parseInt(e.target.closest('button').dataset.photoId);
+                
+                const modal = this.galleryModal;
+                if (modal && modal.showEditPhotoModal) {
+                    modal.showEditPhotoModal(photoId);
+                } else {
+                    console.error('GalleryModal не доступен');
+                    alert('Окно редактирования фото временно недоступно');
+                }
             });
         });
         
+        // Кнопки удаления
         document.querySelectorAll('.photo-delete-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
+                e.preventDefault();
                 e.stopPropagation();
-                const photoId = parseInt(e.target.dataset.photoId);
-                this.deletePhoto(photoId);
+                const photoId = parseInt(e.target.closest('button').dataset.photoId);
+                const photo = this.photos.find(p => p.id === photoId);
+                
+                if (photo && confirm(`Удалить фото "${photo.title}"?`)) {
+                    this.deletePhoto(photoId);
+                }
+            });
+        });
+        
+        // Клик по карточке фото (для просмотра)
+        document.querySelectorAll('.photo-card').forEach(card => {
+            card.addEventListener('click', (e) => {
+                if (!e.target.closest('.photo-actions')) {
+                    const photoId = parseInt(card.dataset.photoId);
+                    const photo = this.photos.find(p => p.id === photoId);
+                    if (photo) {
+                        this.showPhotoPreview(photo);
+                    }
+                }
             });
         });
     }
     
-    showAddPhotoModal() {
-        const pet = this.getCurrentPet();
-        if (!pet) return;
-        
-        this.modalManager.showModal({
-            title: 'Добавить фотографию',
-            content: `
-                <form id="photo-form">
-                    <div class="form-group">
-                        <label for="photo-title">Название фотографии</label>
-                        <input type="text" id="photo-title" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="photo-description">Описание</label>
-                        <textarea id="photo-description" rows="3" required></textarea>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="photo-date">Дата</label>
-                            <input type="date" id="photo-date" value="${new Date().toISOString().split('T')[0]}" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="photo-weight">Вес питомца (кг)</label>
-                            <input type="number" id="photo-weight" step="0.1" min="0" value="${pet.weight || ''}">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="photo-file">Выберите фото с устройства:</label>
-                        <input type="file" id="photo-file" accept="image/*" required>
-                        <small style="color: var(--text-tertiary); font-size: 12px;">
-                            Поддерживаются форматы: JPG, PNG, GIF
-                        </small>
-                    </div>
-                </form>
-            `,
-            buttons: [
-                { 
-                    text: 'Отменить', 
-                    type: 'secondary', 
-                    action: 'close' 
-                },
-                { 
-                    text: 'Добавить', 
-                    type: 'primary', 
-                    action: async () => {
-                        const title = document.getElementById('photo-title').value;
-                        const description = document.getElementById('photo-description').value;
-                        const date = document.getElementById('photo-date').value;
-                        const weight = document.getElementById('photo-weight').value;
-                        const fileInput = document.getElementById('photo-file');
-                        const file = fileInput.files[0];
-                        
-                        if (!file) {
-                            alert('Пожалуйста, выберите файл');
-                            return false;
-                        }
-                        
-                        if (!title || !description) {
-                            alert('Пожалуйста, заполните все поля');
-                            return false;
-                        }
-                        
-                        // Читаем файл как Data URL
-                        const reader = new FileReader();
-                        reader.onload = (e) => {
-                            const newPhoto = {
-                                id: Date.now(),
-                                title: title,
-                                description: description,
-                                date: date,
-                                weight: weight ? parseFloat(weight) : null,
-                                imageData: e.target.result,
-                                fileName: file.name
-                            };
-                            
-                            this.photos.unshift(newPhoto);
-                            this.savePhotos();
-                            
-                            // Обновляем вес питомца если указан
-                            if (newPhoto.weight) {
-                                this.dataManager.updatePet(pet.id, { weight: newPhoto.weight });
-                                this.app.saveData();
-                            }
-                            
-                            this.app.showNotification('Фотография добавлена', 'success');
-                            this.render();
-                        };
-                        
-                        reader.readAsDataURL(file);
-                        return true;
+    showPhotoPreview(photo) {
+        // Простой просмотр фото
+        const modalId = 'photo-preview-' + Date.now();
+        const modalHtml = `
+            <div id="${modalId}" style="
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.9);
+                z-index: 1000;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            ">
+                <div style="max-width: 90%; max-height: 90%; position: relative;">
+                    <button onclick="document.getElementById('${modalId}').remove()" 
+                            style="
+                                position: absolute;
+                                top: -40px;
+                                right: 0;
+                                background: none;
+                                border: none;
+                                color: white;
+                                font-size: 24px;
+                                cursor: pointer;
+                                z-index: 1001;
+                            ">
+                        ✕
+                    </button>
+                    ${photo.imageData ? 
+                        `<img src="${photo.imageData}" alt="${photo.title}" 
+                              style="max-width: 100%; max-height: 80vh; display: block; border-radius: 8px;">` :
+                        `<div style="width: 300px; height: 300px; background: #333; color: white; 
+                              display: flex; align-items: center; justify-content: center; border-radius: 8px;">
+                            <i class="fas fa-image" style="font-size: 48px;"></i>
+                         </div>`
                     }
-                }
-            ]
+                    ${photo.title || photo.description ? `
+                        <div style="color: white; text-align: center; margin-top: 20px; padding: 0 20px;">
+                            ${photo.title ? `<h4 style="margin: 0 0 10px 0; font-size: 18px;">${photo.title}</h4>` : ''}
+                            ${photo.description ? `<p style="margin: 0 0 10px 0; opacity: 0.8;">${photo.description}</p>` : ''}
+                            ${photo.date ? `<small style="opacity: 0.6;">${photo.date}</small>` : ''}
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Закрытие по клику на фон
+        document.getElementById(modalId).addEventListener('click', function(e) {
+            if (e.target === this) {
+                this.remove();
+            }
         });
+        
+        // Закрытие по клавише Escape
+        const closeOnEscape = (e) => {
+            if (e.key === 'Escape') {
+                const modal = document.getElementById(modalId);
+                if (modal) modal.remove();
+                document.removeEventListener('keydown', closeOnEscape);
+            }
+        };
+        document.addEventListener('keydown', closeOnEscape);
     }
     
-    showEditPhotoModal(photoId) {
-        const photo = this.photos.find(p => p.id === photoId);
-        if (!photo) return;
-        
-        const pet = this.getCurrentPet();
-        if (!pet) return;
-        
-        this.modalManager.showModal({
-            title: 'Редактировать фотографию',
-            content: `
-                <form id="photo-edit-form">
-                    <div class="form-group">
-                        <label for="edit-photo-title">Название фотографии</label>
-                        <input type="text" id="edit-photo-title" value="${photo.title}" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="edit-photo-description">Описание</label>
-                        <textarea id="edit-photo-description" rows="3" required>${photo.description}</textarea>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="edit-photo-date">Дата</label>
-                            <input type="date" id="edit-photo-date" value="${photo.date}" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="edit-photo-weight">Вес питомца (кг)</label>
-                            <input type="number" id="edit-photo-weight" step="0.1" min="0" value="${photo.weight || ''}">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="edit-photo-file">Заменить фото (оставьте пустым, чтобы сохранить текущее):</label>
-                        <input type="file" id="edit-photo-file" accept="image/*">
-                    </div>
-                </form>
-            `,
-            buttons: [
-                { 
-                    text: 'Отменить', 
-                    type: 'secondary', 
-                    action: 'close' 
-                },
-                { 
-                    text: 'Удалить', 
-                    type: 'secondary', 
-                    action: () => {
-                        if (confirm('Вы уверены, что хотите удалить эту фотографию?')) {
-                            this.deletePhoto(photoId);
-                            return true;
-                        }
-                        return false;
-                    }
-                },
-                { 
-                    text: 'Сохранить', 
-                    type: 'primary', 
-                    action: async () => {
-                        const title = document.getElementById('edit-photo-title').value;
-                        const description = document.getElementById('edit-photo-description').value;
-                        const date = document.getElementById('edit-photo-date').value;
-                        const weight = document.getElementById('edit-photo-weight').value;
-                        const fileInput = document.getElementById('edit-photo-file');
-                        const file = fileInput.files[0];
-                        
-                        if (!title || !description) {
-                            alert('Пожалуйста, заполните все обязательные поля');
-                            return false;
-                        }
-                        
-                        let imageData = photo.imageData;
-                        let fileName = photo.fileName;
-                        
-                        // Если выбран новый файл
-                        if (file) {
-                            const reader = new FileReader();
-                            reader.onload = (e) => {
-                                imageData = e.target.result;
-                                fileName = file.name;
-                                
-                                const updatedPhoto = {
-                                    ...photo,
-                                    title: title,
-                                    description: description,
-                                    date: date,
-                                    weight: weight ? parseFloat(weight) : null,
-                                    imageData: imageData,
-                                    fileName: fileName
-                                };
-                                
-                                const index = this.photos.findIndex(p => p.id === photoId);
-                                if (index !== -1) {
-                                    this.photos[index] = updatedPhoto;
-                                    this.savePhotos();
-                                    
-                                    if (updatedPhoto.weight) {
-                                        this.dataManager.updatePet(pet.id, { weight: updatedPhoto.weight });
-                                        this.app.saveData();
-                                    }
-                                    
-                                    this.app.showNotification('Фотография обновлена', 'success');
-                                    this.render();
-                                }
-                            };
-                            reader.readAsDataURL(file);
-                        } else {
-                            // Если файл не меняли
-                            const updatedPhoto = {
-                                ...photo,
-                                title: title,
-                                description: description,
-                                date: date,
-                                weight: weight ? parseFloat(weight) : null
-                            };
-                            
-                            const index = this.photos.findIndex(p => p.id === photoId);
-                            if (index !== -1) {
-                                this.photos[index] = updatedPhoto;
-                                this.savePhotos();
-                                
-                                if (updatedPhoto.weight) {
-                                    this.dataManager.updatePet(pet.id, { weight: updatedPhoto.weight });
-                                    this.app.saveData();
-                                }
-                                
-                                this.app.showNotification('Фотография обновлена', 'success');
-                                this.render();
-                            }
-                        }
-                        return true;
-                    }
-                }
-            ]
-        });
-    }
-    
-    deletePhoto(photoId) {
-        const index = this.photos.findIndex(p => p.id === photoId);
-        if (index !== -1) {
-            this.photos.splice(index, 1);
-            this.savePhotos();
-            this.app.showNotification('Фотография удалена', 'warning');
-            this.render();
-        }
+    // Очистка при уничтожении
+    destroy() {
+        this._galleryModal = null;
+        super.destroy();
     }
 }

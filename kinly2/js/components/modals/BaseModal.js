@@ -38,48 +38,62 @@ class BaseModal {
     }
     
     setupEvents() {
-        if (!this.modal) return;
-        
-        // Закрытие по клику на оверлей
-        this.modal.addEventListener('click', (e) => {
-            if (e.target === this.modal) {
-                this.close();
-            }
-        });
-        
-        // Закрытие по кнопке
-        const closeBtn = this.modal.querySelector('.modal-close');
+    if (!this.modal) return;
+    
+    // Закрытие по клику на оверлей
+    this.modal.addEventListener('click', (e) => {
+        if (e.target === this.modal) {
+            this.close();
+        }
+    });
+    
+    // Закрытие по кнопке
+    const closeBtn = this.modal.querySelector('.modal-close');
+    if (closeBtn) {
         closeBtn.addEventListener('click', () => {
             this.close();
         });
-        
-        // Обработчики для кнопок действий
-        if (this.options.buttons) {
-            this.options.buttons.forEach((btn, index) => {
-                const button = this.modal.querySelector(`[data-btn-index="${index}"]`);
-                if (button && btn.action) {
-                    button.addEventListener('click', (e) => {
-                        e.preventDefault();
+    }
+    
+    // Обработчики для кнопок действий
+    if (this.options.buttons) {
+        this.options.buttons.forEach((btn, index) => {
+            const button = this.modal.querySelector(`[data-btn-index="${index}"]`);
+            if (button) {
+                button.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    
+                    // Если action - строка 'close', просто закрываем
+                    if (btn.action === 'close') {
+                        this.close();
+                    }
+                    // Если action - функция, вызываем ее
+                    else if (typeof btn.action === 'function') {
                         const result = btn.action();
                         if (result !== false) {
                             this.close();
                         }
-                    });
-                }
-            });
-        }
-        
-        // Закрытие по Escape
-        this.escapeHandler = (e) => {
-            if (e.key === 'Escape') {
-                this.close();
+                    }
+                    // По умолчанию закрываем
+                    else {
+                        this.close();
+                    }
+                });
             }
-        };
-        document.addEventListener('keydown', this.escapeHandler);
-        
-        // Блокируем прокрутку страницы
-        document.body.classList.add('modal-open');
+        });
     }
+    
+    // Закрытие по Escape
+    this.escapeHandler = (e) => {
+        if (e.key === 'Escape') {
+            this.close();
+        }
+    };
+    document.addEventListener('keydown', this.escapeHandler);
+    
+    // Блокируем прокрутку страницы
+    document.body.classList.add('modal-open');
+}
     
     close() {
         if (this.modal) {
@@ -107,6 +121,11 @@ class BaseModal {
             this.modal.style.display = 'flex';
         }
     }
+    
+    open() {
+    this.show();
+    return this;
+}
     
     hide() {
         if (this.modal) {

@@ -6,7 +6,6 @@ class ModalManager {
     }
     
     showModal(options) {
-        // Закрываем предыдущее модальное окно, если есть
         if (this.currentModal) {
             this.closeCurrentModal();
         }

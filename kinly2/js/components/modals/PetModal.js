@@ -1,4 +1,7 @@
 class PetModal extends BaseModal {
+    constructor(options) {
+        super(options);
+    }
     static createAddModal(onSubmit) {
         const content = `
             <form id="pet-form">

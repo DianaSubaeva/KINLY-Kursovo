@@ -123,7 +123,8 @@ class HealthPresenter extends Presenter {
             const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
             data.push({
                 date: date.toISOString().split('T')[0],
-                weight: parseFloat((baseWeight + Math.random() * 0.4 - 0.2).toFixed(1))
+                // Ограничиваем до 3 знаков после запятой
+                weight: parseFloat((baseWeight + Math.random() * 0.4 - 0.2).toFixed(3))
             });
         }
         return data;
@@ -158,7 +159,8 @@ class HealthPresenter extends Presenter {
                     legend: { display: false },
                     tooltip: {
                         callbacks: {
-                            label: ctx => `Вес: ${ctx.raw} кг`
+                            // Ограничиваем до 3 знаков после запятой в тултипе
+                            label: ctx => `Вес: ${parseFloat(ctx.raw).toFixed(3)} кг`
                         }
                     }
                 },
@@ -166,7 +168,8 @@ class HealthPresenter extends Presenter {
                     y: {
                         beginAtZero: false,
                         ticks: {
-                            callback: value => `${value} кг`
+                            // Ограничиваем до 3 знаков после запятой на оси Y
+                            callback: value => `${parseFloat(value).toFixed(3)} кг`
                         }
                     }
                 }
@@ -328,7 +331,7 @@ class HealthPresenter extends Presenter {
                     </div>
                     <div class="form-group">
                         <label for="weight-value">Вес (кг)</label>
-                        <input type="number" id="weight-value" value="${pet.weight || 4.8}" step="0.1" required>
+                        <input type="number" id="weight-value" value="${pet.weight || 4.8}" step="0.001" required>
                     </div>
                     <div class="form-group">
                         <label for="weight-notes">Примечания</label>
@@ -342,15 +345,22 @@ class HealthPresenter extends Presenter {
                     text: 'Добавить', 
                     type: 'primary', 
                     action: () => {
+                        const weightValue = document.getElementById('weight-value').value;
+                        const weightDate = document.getElementById('weight-date').value;
+                        const weightNotes = document.getElementById('weight-notes').value;
+                        
+                        // Ограничиваем до 3 знаков после запятой
+                        const formattedWeight = parseFloat(weightValue).toFixed(3);
+                        
                         const weightHistory = pet.weightHistory || this.generateWeightData(pet.weight || 4.8);
                         weightHistory.push({
-                            date: document.getElementById('weight-date').value,
-                            weight: parseFloat(document.getElementById('weight-value').value),
-                            notes: document.getElementById('weight-notes').value
+                            date: weightDate,
+                            weight: parseFloat(formattedWeight),
+                            notes: weightNotes
                         });
                         
                         this.dataManager.updatePet(pet.id, {
-                            weight: parseFloat(document.getElementById('weight-value').value),
+                            weight: parseFloat(formattedWeight),
                             weightHistory: weightHistory
                         });
                         
@@ -482,6 +492,16 @@ class HealthPresenter extends Presenter {
                     }
                 }
             ]
+        });
+    }
+    
+    formatDate(dateString) {
+        if (!dateString) return '';
+        const date = new Date(dateString);
+        return date.toLocaleDateString('ru-RU', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
         });
     }
 }
